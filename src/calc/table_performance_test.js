@@ -10,7 +10,7 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 // Constants
 const TABLE_NAME = "CAN_BMS_Data_Optimized";
-const BATTERY_IDS = ["BAT-0x440", "BAT-4501"]; // The two main battery IDs
+const BATTERY_IDS = ["BAT-0x480", "BAT-0x400"]; // The two main battery IDs
 const MAX_PAGES_PER_QUERY = 5; // Limit pages to avoid excessive costs during testing
 const PAGE_SIZE = 500; // Items per page
 

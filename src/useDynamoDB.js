@@ -25,7 +25,7 @@ const useDynamoDB = () => {
         });
 
         fetchUserDetails(session);
-        await fetchData(docClient, "BAT-0x440");
+        await fetchData(docClient, "BAT-0x480");
       } catch (error) {
         console.error("Error fetching AWS credentials:", error);
         setErrorMessage("Failed to fetch AWS credentials.");

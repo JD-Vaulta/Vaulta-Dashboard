@@ -159,7 +159,7 @@ const Page5 = ({ bmsData, lambdaResponse }) => {
       ).toFixed(2)} A`,
       currentPowerStatus: latestHour.Power > 0 ? "Consuming" : "Charging",
       systemHealth: `${parseFloat(
-        bmsData?.lastMinuteData?.[0]?.SOH_Estimate?.N || 0
+        bmsData?.lastMinuteData?.[0]?.SOCPercent?.N || 0
       ).toFixed(2)}%`,
     };
 
@@ -217,7 +217,7 @@ const Page5 = ({ bmsData, lambdaResponse }) => {
         title: "System Health",
         items: [
           {
-            label: "State of Health",
+            label: "State of Charge",
             value: metrics.systemHealth,
             icon: "📉",
             color: "#F44336",

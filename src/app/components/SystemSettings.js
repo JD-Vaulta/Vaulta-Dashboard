@@ -84,19 +84,18 @@ const Page4 = ({ signOut }) => {
       style={{
         display: "flex",
         flexDirection: "column",
-        minHeight: "100vh",
+        minHeight: "20vh",
         backgroundColor: "#f2f2f2", // OneUI light background
         fontFamily:
           "SamsungOne, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
         padding: "10px",
       }}
     >
-      {/* TopBanner replacing Sidebar */}
-
       <div
         style={{
           flex: 1,
           backgroundColor: "#f2f2f2", // OneUI light background
+          maxHeight: "80vh",
         }}
       >
         <div

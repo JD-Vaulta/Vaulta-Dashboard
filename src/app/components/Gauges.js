@@ -217,7 +217,13 @@ const Gauges = ({ bmsState, roundValue }) => {
               whiteSpace: "nowrap",
             }}
           >
-            {hoveredPoint.entry.value.toFixed(2)}
+            {/* More robust fix */}
+            {(() => {
+              const value = hoveredPoint.entry.value;
+              const numValue =
+                typeof value === "number" ? value : parseFloat(value);
+              return isNaN(numValue) ? "0.00" : numValue.toFixed(2);
+            })()}
             {gauges.find((g) => g.key === data.key)?.unit}
             <br />
             {hoveredPoint.entry.timestamp}
@@ -239,13 +245,13 @@ const Gauges = ({ bmsState, roundValue }) => {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          padding: "20px",
+          padding: "10px",
           backgroundColor: "#fff",
           borderRadius: "12px",
           border: `1px solid ${colors.primary}`,
-          margin: "0 10px",
+          margin: "0 5px",
           height: "100%",
-          minHeight: "300px",
+          minHeight: "250px",
           position: "relative",
           boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
           transition: "all 0.3s ease",
@@ -278,7 +284,7 @@ const Gauges = ({ bmsState, roundValue }) => {
           }}
         >
           <div
-            style={{ width: "140px", height: "140px", margin: "0 auto 15px" }}
+            style={{ width: "100px", height: "100px", margin: "0 auto 10px" }}
           >
             <CircularProgressbar
               value={percentage}
@@ -327,7 +333,7 @@ const Gauges = ({ bmsState, roundValue }) => {
         <div
           style={{
             position: "absolute",
-            bottom: "15px",
+            bottom: "10px",
             left: "15px",
             right: "15px",
             height: "50px",
@@ -383,7 +389,7 @@ const Gauges = ({ bmsState, roundValue }) => {
         background: colors.background,
         borderRadius: "12px",
         overflow: "hidden",
-        padding: "10px",
+        padding: "5px",
         border: `1px solid ${colors.secondary}`,
       }}
       onTouchStart={handleTouchStart}

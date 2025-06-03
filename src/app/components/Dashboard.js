@@ -330,7 +330,7 @@ const Dashboard = ({ bmsData, activeSection = "system" }) => {
                 style={{
                   backgroundColor: "#fff",
                   borderRadius: "12px",
-                  padding: "15px",
+                  padding: "0px",
                   boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                   flex: 1,
                   minHeight: 0,
@@ -339,18 +339,6 @@ const Dashboard = ({ bmsData, activeSection = "system" }) => {
                   border: `1px solid ${colors.secondary}`,
                 }}
               >
-                <h2
-                  style={{
-                    color: colors.textDark,
-                    marginBottom: "15px",
-                    fontWeight: "600",
-                    fontSize: "1.2rem",
-                    borderBottom: `1px solid ${colors.secondary}`,
-                    paddingBottom: "5px",
-                  }}
-                >
-                  Battery Performance
-                </h2>
                 <div style={{ flex: 1, minHeight: 0 }}>
                   <Gauges
                     bmsState={bmsState}

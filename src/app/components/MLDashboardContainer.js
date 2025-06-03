@@ -177,7 +177,7 @@ const MLDashboardContainer = ({ signOut, bmsData }) => {
   return (
     <div
       style={{
-        height: "100vh",
+        height: "80vh",
         backgroundColor: colors.background,
         fontFamily:
           "SamsungOne, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
@@ -191,7 +191,7 @@ const MLDashboardContainer = ({ signOut, bmsData }) => {
         style={{
           backgroundColor: "white",
           padding: "25px",
-          margin: "20px 20px 0 20px",
+          margin: "10px 10px 0 10px",
           borderRadius: "15px",
           boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
           flexShrink: 0,
@@ -387,7 +387,7 @@ const MLDashboardContainer = ({ signOut, bmsData }) => {
         style={{
           flex: 1,
           overflow: "auto",
-          padding: "20px",
+          padding: "10px",
           paddingTop: "20px",
         }}
       >

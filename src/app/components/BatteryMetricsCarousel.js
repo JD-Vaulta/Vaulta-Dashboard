@@ -124,8 +124,8 @@ const BatteryMetricsCarousel = ({ bmsState, roundValue, containerRef }) => {
       statusColor: colors.accentGreen,
     },
     {
-      title: "State of Health",
-      key: "SOH",
+      title: "State of Charge",
+      key: "SOC",
       value: 95,
       maxValue: 100,
       unit: "%",

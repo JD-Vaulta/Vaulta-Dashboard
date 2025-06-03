@@ -1,37 +1,34 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import TopBanner from "./TopBanner.js";
-import { fetchData } from "./DataFetcher.js";
 import DataViewer from "./DataViewer.js";
-import LoadingSpinner from "./LoadingSpinner.js";
+import { fetchData } from "../../queries.js";
 
-// Using the same color scheme from WeatherCard
+// Updated color scheme
 const colors = {
-  primary: "#818181",
-  secondary: "#c0c0c0",
-  accentGreen: "#4CAF50",
-  accentRed: "#F44336",
-  accentBlue: "#2196F3",
-  background: "rgba(192, 192, 192, 0.1)",
-  textDark: "#333333",
-  textLight: "#555555",
-  highlight: "#FFC107",
+  edward: "#adaead",
+  heavyMetal: "#1a1b1a",
+  desertStorm: "#eaeae8",
+  atlantis: "#87c842",
+  stormDust: "#636362",
+  thunderbird: "#bf1c1b",
+  grannySmith: "#b8e09f",
+  ghost: "#cbccd4",
+  // Main usage colors
+  primary: "#636362", // storm-dust
+  secondary: "#adaead", // edward
+  background: "rgba(234,234,232,0.1)", // desert-storm with opacity
+  backgroundSolid: "#eaeae8", // desert-storm solid
+  textDark: "#1a1b1a", // heavy-metal
+  textLight: "#636362", // storm-dust
+  accent: "#87c842", // atlantis
+  error: "#bf1c1b", // thunderbird
 };
 
 const Page3 = ({ signOut }) => {
-  const [selectedTagId, setSelectedTagId] = useState("0x440");
+  const [selectedTagId, setSelectedTagId] = useState("0x480");
   const [selectedTimeRange, setSelectedTimeRange] = useState("1hour");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [darkMode, setDarkMode] = useState(false);
-  const navigate = useNavigate();
-
-  const [bmsState, setBmsState] = useState({
-    DeviceId: { N: "ANALYTICS-DEVICE" },
-    SerialNumber: { N: "12345678" },
-    TagID: { S: "BAT-ANALYTICS" },
-  });
 
   const baseIds = [
     "0x100",
@@ -68,6 +65,7 @@ const Page3 = ({ signOut }) => {
     { label: "Last 1 Month", value: "1month" },
   ];
 
+  // Data fetcher using consolidated queries.js
   const handleFetchData = async () => {
     setLoading(true);
     setError(null);
@@ -84,28 +82,40 @@ const Page3 = ({ signOut }) => {
     }
   };
 
-  const TabControls = () => <div></div>;
+  // If we have data, show the grid layout
+  if (data || loading || error) {
+    return (
+      <DataViewer
+        loading={loading}
+        error={error}
+        data={data}
+        selectedTagId={selectedTagId}
+        setSelectedTagId={setSelectedTagId}
+        onFetchData={handleFetchData}
+        baseIds={baseIds}
+      />
+    );
+  }
 
+  // Initial state - show selection interface
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
         minHeight: "100vh",
-        backgroundColor: "#fff",
+        backgroundColor: colors.backgroundSolid,
         fontFamily:
           "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
       }}
     >
-      {/* TopBanner - You might want to style this component separately */}
-
       <div
         style={{
           flex: 1,
           padding: "20px",
           display: "flex",
           flexDirection: "column",
-          maxWidth: "3500px",
+          maxWidth: "1200px",
           margin: "0 auto",
           width: "100%",
           boxSizing: "border-box",
@@ -116,33 +126,43 @@ const Page3 = ({ signOut }) => {
           style={{
             backgroundColor: "#fff",
             borderRadius: "12px",
-            padding: "20px",
+            padding: "40px",
             boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             border: `1px solid ${colors.primary}`,
             display: "flex",
             flexDirection: "column",
-            height: "100%",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "500px",
           }}
         >
           {/* Header Section */}
           <div
             style={{
-              borderBottom: `1px solid ${colors.secondary}`,
-              paddingBottom: "15px",
-              marginBottom: "20px",
+              textAlign: "center",
+              marginBottom: "40px",
             }}
           >
             <h1
               style={{
-                fontSize: "1.5rem",
+                fontSize: "2.5rem",
                 fontWeight: "700",
                 color: colors.textDark,
-                margin: 0,
+                margin: "0 0 16px 0",
                 letterSpacing: "0.5px",
               }}
             >
-              Data Analytics
+              Battery Data Analytics
             </h1>
+            <p
+              style={{
+                fontSize: "1.1rem",
+                color: colors.textLight,
+                margin: 0,
+              }}
+            >
+              Select device and time range to analyze battery performance
+            </p>
           </div>
 
           {/* Controls Section */}
@@ -150,8 +170,9 @@ const Page3 = ({ signOut }) => {
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "20px",
-              marginBottom: "20px",
+              gap: "30px",
+              width: "100%",
+              maxWidth: "600px",
             }}
           >
             {/* Dropdowns Row */}
@@ -166,11 +187,11 @@ const Page3 = ({ signOut }) => {
               <div style={{ flex: 1, minWidth: "250px" }}>
                 <label
                   style={{
-                    fontSize: "0.95rem",
-                    color: colors.textLight,
+                    fontSize: "1rem",
+                    color: colors.textDark,
                     marginBottom: "8px",
                     display: "block",
-                    fontWeight: "500",
+                    fontWeight: "600",
                   }}
                 >
                   Device ID:
@@ -179,14 +200,16 @@ const Page3 = ({ signOut }) => {
                   value={selectedTagId}
                   onChange={(e) => setSelectedTagId(e.target.value)}
                   style={{
-                    padding: "10px 15px",
-                    borderRadius: "6px",
-                    border: `1px solid ${colors.secondary}`,
+                    padding: "12px 16px",
+                    borderRadius: "8px",
+                    border: `2px solid ${colors.secondary}`,
                     width: "100%",
-                    fontSize: "0.95rem",
+                    fontSize: "1rem",
                     color: colors.textDark,
                     backgroundColor: "#fff",
                     cursor: "pointer",
+                    outline: "none",
+                    transition: "border-color 0.2s ease",
                   }}
                 >
                   {baseIds.map((id) => (
@@ -201,11 +224,11 @@ const Page3 = ({ signOut }) => {
               <div style={{ flex: 1, minWidth: "250px" }}>
                 <label
                   style={{
-                    fontSize: "0.95rem",
-                    color: colors.textLight,
+                    fontSize: "1rem",
+                    color: colors.textDark,
                     marginBottom: "8px",
                     display: "block",
-                    fontWeight: "500",
+                    fontWeight: "600",
                   }}
                 >
                   Time Period:
@@ -214,14 +237,16 @@ const Page3 = ({ signOut }) => {
                   value={selectedTimeRange}
                   onChange={(e) => setSelectedTimeRange(e.target.value)}
                   style={{
-                    padding: "10px 15px",
-                    borderRadius: "6px",
-                    border: `1px solid ${colors.secondary}`,
+                    padding: "12px 16px",
+                    borderRadius: "8px",
+                    border: `2px solid ${colors.secondary}`,
                     width: "100%",
-                    fontSize: "0.95rem",
+                    fontSize: "1rem",
                     color: colors.textDark,
                     backgroundColor: "#fff",
                     cursor: "pointer",
+                    outline: "none",
+                    transition: "border-color 0.2s ease",
                   }}
                 >
                   {timeRanges.map((range) => (
@@ -234,114 +259,72 @@ const Page3 = ({ signOut }) => {
             </div>
 
             {/* Analyze Button */}
-            <div style={{ alignSelf: "center" }}>
+            <div style={{ textAlign: "center" }}>
               <button
                 onClick={handleFetchData}
                 style={{
-                  padding: "12px 24px",
-                  backgroundColor: colors.primary,
+                  padding: "16px 32px",
+                  backgroundColor: colors.accent,
                   color: "#fff",
                   border: "none",
-                  borderRadius: "6px",
+                  borderRadius: "8px",
                   cursor: "pointer",
-                  fontSize: "1rem",
-                  fontWeight: "600",
+                  fontSize: "1.1rem",
+                  fontWeight: "700",
                   transition: "all 0.3s ease",
-                  opacity: loading ? 0.7 : 1,
-                  pointerEvents: loading ? "none" : "auto",
+                  boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
                 }}
-                disabled={loading}
+                onMouseOver={(e) => {
+                  e.target.style.backgroundColor = colors.primary;
+                  e.target.style.transform = "translateY(-2px)";
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.backgroundColor = colors.accent;
+                  e.target.style.transform = "translateY(0)";
+                }}
               >
-                {loading ? "Loading..." : "Analyze Data"}
+                Analyze Data
               </button>
             </div>
-          </div>
 
-          {/* Results Section */}
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "row",
-              minWidth: "300px",
-            }}
-          >
-            {loading ? (
-              <div
+            {/* Info Section */}
+            <div
+              style={{
+                textAlign: "center",
+                padding: "20px",
+                backgroundColor: colors.background,
+                borderRadius: "8px",
+                border: `1px solid ${colors.secondary}`,
+              }}
+            >
+              <h3
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flex: 1,
+                  fontSize: "1.1rem",
+                  fontWeight: "600",
+                  color: colors.textDark,
+                  margin: "0 0 8px 0",
+                }}
+              >
+                What you'll see:
+              </h3>
+              <p
+                style={{
+                  fontSize: "0.95rem",
                   color: colors.textLight,
+                  margin: 0,
+                  lineHeight: "1.5",
                 }}
               >
-                <div
-                  style={{
-                    border: `4px solid ${colors.background}`,
-                    borderTop: `4px solid ${colors.primary}`,
-                    borderRadius: "50%",
-                    width: "40px",
-                    height: "40px",
-                    animation: "spin 1s linear infinite",
-                    marginBottom: "20px",
-                  }}
-                ></div>
-                <p>Processing data...</p>
-              </div>
-            ) : error ? (
-              <div
-                style={{
-                  padding: "20px",
-                  backgroundColor: colors.background,
-                  borderRadius: "8px",
-                  color: colors.accentRed,
-                  textAlign: "center",
-                  border: `1px solid ${colors.secondary}`,
-                }}
-              >
-                {error}
-              </div>
-            ) : data ? (
-              <div
-                style={{
-                  flex: 1,
-                  backgroundColor: colors.background,
-                  borderRadius: "8px",
-                  padding: "15px",
-                  border: `1px solid ${colors.secondary}`,
-                }}
-              >
-                <DataViewer data={data} />
-              </div>
-            ) : (
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: colors.textLight,
-                  textAlign: "center",
-                  padding: "20px",
-                }}
-              >
-                Select device and time range, then click "Analyze Data" to view
-                battery analytics.
-              </div>
-            )}
+                Interactive grid dashboard with cell data, pack information,
+                temperature readings, SOC metrics, and real-time trend analysis
+                for comprehensive battery monitoring.
+              </p>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Spinner animation */}
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 };

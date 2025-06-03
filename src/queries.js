@@ -2,8 +2,13 @@
  * queries.js - Optimized query functions for CAN_BMS_Data_Optimized table
  *
  * This module provides functions for efficient querying of battery data using
- * the optimized table structure with time bucket indexes.
+ * the optimized table structure with time bucket indexes and includes consolidated
+ * data fetching functionality.
  */
+
+import AWS from "aws-sdk";
+import { fetchAuthSession } from "aws-amplify/auth";
+import awsconfig from "./aws-exports.js";
 
 // Table name
 const TABLE_NAME = "CAN_BMS_Data_Optimized";
@@ -40,11 +45,16 @@ const convertDynamoDBFormat = (item) => {
   return converted;
 };
 
+// Helper function to round a value to 2 decimal places
+const roundToTwoDecimals = (value) => {
+  if (typeof value === "number") {
+    return parseFloat(value.toFixed(2));
+  }
+  return value;
+};
+
 /**
  * Get the latest reading for a battery
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @param {String} batteryId - Battery ID (e.g., "BAT-0x440")
- * @returns {Promise<Object>} Latest battery reading
  */
 export const getLatestReading = async (docClient, batteryId) => {
   try {
@@ -61,16 +71,13 @@ export const getLatestReading = async (docClient, batteryId) => {
     const result = await docClient.query(params).promise();
 
     if (result.Items.length > 0) {
-      // Convert the data to the format expected by the dashboard
       const item = result.Items[0];
       const convertedItem = {};
 
       for (const [key, value] of Object.entries(item)) {
-        // Convert numeric values to DynamoDB format expected by dashboard
         if (typeof value === "number") {
           convertedItem[key] = { N: value.toString() };
         } else if (typeof value === "string" && key !== "TagID") {
-          // Check if it's a numeric string
           if (!isNaN(value)) {
             convertedItem[key] = { N: value };
           } else {
@@ -86,44 +93,16 @@ export const getLatestReading = async (docClient, batteryId) => {
 
     return null;
   } catch (error) {
-    console.error(`Error getting latest reading for ${batteryId}:`, error);
-    throw error;
-  }
-};
-
-/**
- * Get the latest readings for all batteries
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @param {Number} limit - Maximum number of items to return (default: 10)
- * @returns {Promise<Array>} Latest readings across all batteries
- */
-export const getLatestReadingsAll = async (docClient, limit = 10) => {
-  try {
-    const params = {
-      TableName: TABLE_NAME,
-      IndexName: "LatestDataIndex",
-      KeyConditionExpression: "LATEST = :latest",
-      ExpressionAttributeValues: {
-        ":latest": "LATEST",
-      },
-      Limit: limit,
-      ScanIndexForward: false, // Descending order (newest first)
-    };
-
-    const result = await docClient.query(params).promise();
-    return result.Items.map(convertDynamoDBFormat);
-  } catch (error) {
-    console.error("Error getting latest readings:", error);
+    console.error(
+      `Error getting latest reading for ${batteryId}:`,
+      error.message
+    );
     throw error;
   }
 };
 
 /**
  * Get data from the last minute for a specific battery
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @param {String} batteryId - Battery ID
- * @param {Array} attributes - Optional list of attributes to retrieve
- * @returns {Promise<Array>} Battery readings from the last minute
  */
 export const getLastMinuteData = async (
   docClient,
@@ -146,7 +125,6 @@ export const getLastMinuteData = async (
       },
     };
 
-    // Add projection expression if specific attributes are requested
     if (attributes && attributes.length > 0) {
       const attrNames = {};
       attributes.forEach((attr, index) => {
@@ -155,14 +133,12 @@ export const getLastMinuteData = async (
         }
       });
 
-      // Only add expression attributes if we have custom attributes
       if (Object.keys(attrNames).length > 0) {
         params.ExpressionAttributeNames = {
           ...params.ExpressionAttributeNames,
           ...attrNames,
         };
 
-        // Build projection expression
         const projectionItems = ["TagID", "#ts"];
         Object.keys(attrNames).forEach((key) => {
           projectionItems.push(key);
@@ -174,7 +150,6 @@ export const getLastMinuteData = async (
 
     const result = await docClient.query(params).promise();
 
-    // Convert to expected format
     return result.Items.map((item) => {
       const convertedItem = {};
       for (const [key, value] of Object.entries(item)) {
@@ -193,186 +168,16 @@ export const getLastMinuteData = async (
       return convertedItem;
     });
   } catch (error) {
-    console.error(`Error getting last minute data for ${batteryId}:`, error);
+    console.error(
+      `Error getting last minute data for ${batteryId}:`,
+      error.message
+    );
     throw error;
   }
 };
 
 /**
- * Get battery anomalies from BatteryAnomalies_EC2 table
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @param {String} batteryId - Battery ID (e.g., "BAT-0x440")
- * @param {Number} limit - Maximum number of anomalies to return (default: 50)
- * @returns {Promise<Object>} Anomalies data with success status
- */
-export const getBatteryAnomalies = async (docClient, batteryId, limit = 50) => {
-  try {
-    // First try to query using a GSI on tag_id (if it exists)
-    const queryParams = {
-      TableName: "BatteryAnomalies_EC2",
-      IndexName: "tag_id-timestamp-index", // Assuming GSI exists
-      KeyConditionExpression: "tag_id = :batteryId",
-      ExpressionAttributeValues: {
-        ":batteryId": batteryId,
-      },
-      ScanIndexForward: false, // Sort by timestamp descending (newest first)
-      Limit: limit,
-    };
-
-    // Fallback scan parameters if GSI doesn't exist
-    const scanParams = {
-      TableName: "BatteryAnomalies_EC2",
-      FilterExpression: "tag_id = :batteryId",
-      ExpressionAttributeValues: {
-        ":batteryId": batteryId,
-      },
-      Limit: limit,
-    };
-
-    let result;
-    try {
-      // Try query first (more efficient if GSI exists)
-      result = await docClient.query(queryParams).promise();
-    } catch (queryError) {
-      console.log(
-        "GSI query failed, falling back to scan:",
-        queryError.message
-      );
-      // Fall back to scan if query fails
-      result = await docClient.scan(scanParams).promise();
-    }
-
-    console.log(`Found ${result.Items.length} anomalies for ${batteryId}`);
-
-    // Format the data for the frontend
-    const formattedAnomalies = result.Items.map((item) => ({
-      id: item.id,
-      timestamp: parseInt(item.timestamp) * 1000, // Convert to milliseconds
-      anomaly_score: parseFloat(item.anomaly_score),
-      detection_time: item.detection_time,
-      MaxCellTemp: parseFloat(item.MaxCellTemp),
-      MaximumCellVoltage: parseFloat(item.MaximumCellVoltage),
-      MinCellTemp: parseFloat(item.MinCellTemp),
-      MinimumCellVoltage: parseFloat(item.MinimumCellVoltage),
-      SOCAh: parseFloat(item.SOCAh),
-      SOCPercent: parseFloat(item.SOCPercent),
-      tag_id: item.tag_id,
-      TotalBattVoltage: parseFloat(item.TotalBattVoltage),
-      TotalCurrent: parseFloat(item.TotalCurrent),
-    }));
-
-    // Sort by timestamp (newest first)
-    formattedAnomalies.sort((a, b) => b.timestamp - a.timestamp);
-
-    return {
-      success: true,
-      data: formattedAnomalies,
-      count: formattedAnomalies.length,
-    };
-  } catch (error) {
-    console.error("Error fetching battery anomalies:", error);
-    return {
-      success: false,
-      error: error.message,
-      data: [],
-      count: 0,
-    };
-  }
-};
-
-/**
- * Get all battery anomalies from BatteryAnomalies_EC2 table (no filtering)
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @param {Number} limit - Maximum number of anomalies to return (default: 50)
- * @returns {Promise<Object>} All anomalies data with success status
- */
-export const getAllBatteryAnomalies = async (docClient, limit = 50) => {
-  try {
-    const scanParams = {
-      TableName: "BatteryAnomalies_EC2",
-      Limit: limit,
-    };
-
-    const result = await docClient.scan(scanParams).promise();
-
-    console.log(`Found ${result.Items.length} total anomalies`);
-
-    // Format the data for the frontend
-    const formattedAnomalies = result.Items.map((item) => ({
-      id: item.id,
-      timestamp: parseInt(item.timestamp) * 1000, // Convert to milliseconds
-      anomaly_score: parseFloat(item.anomaly_score),
-      detection_time: item.detection_time,
-      MaxCellTemp: parseFloat(item.MaxCellTemp),
-      MaximumCellVoltage: parseFloat(item.MaximumCellVoltage),
-      MinCellTemp: parseFloat(item.MinCellTemp),
-      MinimumCellVoltage: parseFloat(item.MinimumCellVoltage),
-      SOCAh: parseFloat(item.SOCAh),
-      SOCPercent: parseFloat(item.SOCPercent),
-      tag_id: item.tag_id,
-      TotalBattVoltage: parseFloat(item.TotalBattVoltage),
-      TotalCurrent: parseFloat(item.TotalCurrent),
-    }));
-
-    // Sort by timestamp (newest first)
-    formattedAnomalies.sort((a, b) => b.timestamp - a.timestamp);
-
-    return {
-      success: true,
-      data: formattedAnomalies,
-      count: formattedAnomalies.length,
-      lastEvaluatedKey: result.LastEvaluatedKey, // For pagination
-    };
-  } catch (error) {
-    console.error("Error fetching all battery anomalies:", error);
-    return {
-      success: false,
-      error: error.message,
-      data: [],
-      count: 0,
-    };
-  }
-};
-
-/**
- * Get all unique battery IDs from BatteryAnomalies_EC2 table
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @returns {Promise<Object>} Available battery IDs with success status
- */
-export const getAvailableBatteryIds = async (docClient) => {
-  try {
-    const params = {
-      TableName: "BatteryAnomalies_EC2",
-      ProjectionExpression: "tag_id",
-    };
-
-    const result = await docClient.scan(params).promise();
-
-    // Get unique battery IDs
-    const uniqueIds = [...new Set(result.Items.map((item) => item.tag_id))];
-
-    return {
-      success: true,
-      data: uniqueIds.sort(),
-      count: uniqueIds.length,
-    };
-  } catch (error) {
-    console.error("Error fetching available battery IDs:", error);
-    return {
-      success: false,
-      error: error.message,
-      data: [],
-      count: 0,
-    };
-  }
-};
-
-/**
  * Get data from the last hour using hour bucket index
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @param {String} batteryId - Battery ID
- * @param {Array} attributes - Optional list of attributes to retrieve
- * @returns {Promise<Array>} Battery readings from the current hour
  */
 export const getLastHourData = async (
   docClient,
@@ -397,7 +202,6 @@ export const getLastHourData = async (
       },
     };
 
-    // Add projection expression if needed
     if (attributes && attributes.length > 0) {
       const attrNames = {};
       attributes.forEach((attr, index) => {
@@ -424,17 +228,16 @@ export const getLastHourData = async (
     const result = await docClient.query(params).promise();
     return result.Items.map(convertDynamoDBFormat);
   } catch (error) {
-    console.error(`Error getting last hour data for ${batteryId}:`, error);
+    console.error(
+      `Error getting last hour data for ${batteryId}:`,
+      error.message
+    );
     throw error;
   }
 };
 
 /**
  * Get data from the current day using day bucket index
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @param {String} batteryId - Battery ID
- * @param {Array} attributes - Optional list of attributes to retrieve
- * @returns {Promise<Array>} Battery readings from the current day
  */
 export const getLastDayData = async (
   docClient,
@@ -458,7 +261,6 @@ export const getLastDayData = async (
       },
     };
 
-    // Add projection expression if needed
     if (attributes && attributes.length > 0) {
       const attrNames = {};
       attributes.forEach((attr, index) => {
@@ -485,17 +287,16 @@ export const getLastDayData = async (
     const result = await docClient.query(params).promise();
     return result.Items.map(convertDynamoDBFormat);
   } catch (error) {
-    console.error(`Error getting last day data for ${batteryId}:`, error);
+    console.error(
+      `Error getting last day data for ${batteryId}:`,
+      error.message
+    );
     throw error;
   }
 };
 
 /**
  * Get data from the current month using month bucket index
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @param {String} batteryId - Battery ID
- * @param {Array} attributes - Optional list of attributes to retrieve
- * @returns {Promise<Array>} Battery readings from the current month
  */
 export const getLastMonthData = async (
   docClient,
@@ -518,7 +319,6 @@ export const getLastMonthData = async (
       },
     };
 
-    // Add projection expression if needed
     if (attributes && attributes.length > 0) {
       const attrNames = {};
       attributes.forEach((attr, index) => {
@@ -545,19 +345,16 @@ export const getLastMonthData = async (
     const result = await docClient.query(params).promise();
     return result.Items.map(convertDynamoDBFormat);
   } catch (error) {
-    console.error(`Error getting last month data for ${batteryId}:`, error);
+    console.error(
+      `Error getting last month data for ${batteryId}:`,
+      error.message
+    );
     throw error;
   }
 };
 
 /**
  * Get data for a custom time range
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @param {String} batteryId - Battery ID
- * @param {Number} startTime - Start timestamp (Unix)
- * @param {Number} endTime - End timestamp (Unix)
- * @param {Array} attributes - Optional list of attributes to retrieve
- * @returns {Promise<Array>} Battery readings within the specified time range
  */
 export const getTimeRangeData = async (
   docClient,
@@ -580,7 +377,6 @@ export const getTimeRangeData = async (
       },
     };
 
-    // Add projection expression if needed
     if (attributes && attributes.length > 0) {
       const attrNames = {};
       attributes.forEach((attr, index) => {
@@ -607,17 +403,16 @@ export const getTimeRangeData = async (
     const result = await docClient.query(params).promise();
     return result.Items.map(convertDynamoDBFormat);
   } catch (error) {
-    console.error(`Error getting time range data for ${batteryId}:`, error);
+    console.error(
+      `Error getting time range data for ${batteryId}:`,
+      error.message
+    );
     throw error;
   }
 };
 
 /**
  * Get the last 7 days of data using multiple day bucket queries in parallel
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @param {String} batteryId - Battery ID
- * @param {Array} attributes - Optional list of attributes to retrieve
- * @returns {Promise<Array>} Battery readings from the last 7 days
  */
 export const getLast7DaysData = async (
   docClient,
@@ -625,7 +420,6 @@ export const getLast7DaysData = async (
   attributes = null
 ) => {
   try {
-    // Generate buckets for the last 7 days
     const dayBuckets = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date();
@@ -636,7 +430,6 @@ export const getLast7DaysData = async (
       dayBuckets.push(`${batteryId}#DAY_${dayStr}`);
     }
 
-    // Query each day bucket in parallel
     const queryPromises = dayBuckets.map((bucket) => {
       const params = {
         TableName: TABLE_NAME,
@@ -647,7 +440,6 @@ export const getLast7DaysData = async (
         },
       };
 
-      // Add projection expression if needed
       if (attributes && attributes.length > 0) {
         const attrNames = {};
         attributes.forEach((attr, index) => {
@@ -674,46 +466,471 @@ export const getLast7DaysData = async (
       return docClient.query(params).promise();
     });
 
-    // Wait for all queries to complete
     const results = await Promise.all(queryPromises);
-
-    // Combine results from all days and convert format
     const allItems = results.flatMap((result) => result.Items || []);
     return allItems.map(convertDynamoDBFormat);
   } catch (error) {
-    console.error(`Error getting last 7 days data for ${batteryId}:`, error);
+    console.error(
+      `Error getting last 7 days data for ${batteryId}:`,
+      error.message
+    );
     throw error;
   }
 };
 
-// Export a function to add pagination support to any query
-export const paginateQuery = async (
-  docClient,
-  queryFn,
-  params,
-  allItems = []
-) => {
+/**
+ * Main data fetching function - consolidated from DataFetcher.js
+ */
+export const fetchData = async (selectedTagId, selectedTimeRange) => {
   try {
-    const result = await queryFn(params).promise();
+    const session = await fetchAuthSession();
+    const credentials = session.credentials;
 
-    // Add items from this page
-    if (result.Items && result.Items.length > 0) {
-      allItems = [...allItems, ...result.Items];
+    if (!credentials) {
+      throw new Error("No credentials available");
     }
 
-    // If there are more items to fetch
-    if (result.LastEvaluatedKey) {
-      // Update params with the last evaluated key
-      params.ExclusiveStartKey = result.LastEvaluatedKey;
+    const docClient = new AWS.DynamoDB.DocumentClient({
+      apiVersion: "2012-10-17",
+      region: awsconfig.region || awsconfig.aws_project_region,
+      credentials,
+    });
 
-      // Recursive call to fetch next page
-      return paginateQuery(docClient, queryFn, params, allItems);
+    const batteryId = `BAT-${selectedTagId}`;
+    let fetchedData = [];
+
+    // Use the optimized queries based on time range
+    switch (selectedTimeRange) {
+      case "1min":
+        fetchedData = await getLastMinuteData(docClient, batteryId);
+        break;
+      case "5min":
+        const fiveMinAgo = Math.floor(Date.now() / 1000) - 300;
+        const now = Math.floor(Date.now() / 1000);
+        fetchedData = await getTimeRangeData(
+          docClient,
+          batteryId,
+          fiveMinAgo,
+          now
+        );
+        break;
+      case "1hour":
+        fetchedData = await getLastHourData(docClient, batteryId);
+        break;
+      case "8hours":
+        const eightHoursAgo = Math.floor(Date.now() / 1000) - 28800;
+        const currentTime = Math.floor(Date.now() / 1000);
+        fetchedData = await getTimeRangeData(
+          docClient,
+          batteryId,
+          eightHoursAgo,
+          currentTime
+        );
+        break;
+      case "1day":
+        fetchedData = await getLastDayData(docClient, batteryId);
+        break;
+      case "7days":
+        fetchedData = await getLast7DaysData(docClient, batteryId);
+        break;
+      case "1month":
+        fetchedData = await getLastMonthData(docClient, batteryId);
+        break;
+      default:
+        fetchedData = await getLastHourData(docClient, batteryId);
     }
 
-    return allItems;
+    if (!fetchedData || fetchedData.length === 0) {
+      console.warn(
+        `No data found for ${batteryId} in time range ${selectedTimeRange}`
+      );
+      return {
+        error: "No data found",
+        batteryId,
+        timeRange: selectedTimeRange,
+        Node0: {
+          voltage: { cellVoltages: Array.from({ length: 14 }, () => []) },
+          temperature: {},
+        },
+        Node1: {
+          voltage: { cellVoltages: Array.from({ length: 14 }, () => []) },
+          temperature: {},
+        },
+        Pack: {},
+        Cell: {},
+        Temperature: {},
+        SOC: {},
+      };
+    }
+
+    // Initialize structured data
+    const structuredData = {
+      Node0: {
+        voltage: {
+          cellVoltages: Array.from({ length: 14 }, () => []),
+        },
+        temperature: {},
+      },
+      Node1: {
+        voltage: {
+          cellVoltages: Array.from({ length: 14 }, () => []),
+        },
+        temperature: {},
+      },
+      Pack: {
+        numParallelNodes: null,
+        numNodes: null,
+        thresholdOverCurrent: null,
+        modes: null,
+        totalBattVoltage: null,
+        totalLoadVoltage: null,
+        totalCurrent: null,
+        serialNumber: null,
+        state: null,
+        events: null,
+      },
+      Cell: {
+        maxCellVoltage: null,
+        minCellVoltage: null,
+        maxCellVoltageCellNo: null,
+        minCellVoltageCellNo: null,
+        maxCellVoltageNode: null,
+        minCellVoltageNode: null,
+        thresholdOverVoltage: null,
+        thresholdUnderVoltage: null,
+        criticalOverVoltThreshold: null,
+        criticalUnderVoltThreshold: null,
+        balanceThresholdVoltage: null,
+      },
+      Temperature: {
+        maxCellTemp: null,
+        minCellTemp: null,
+        maxCellTempNode: null,
+        minCellTempNode: null,
+        thresholdOverTemp: null,
+        thresholdUnderTemp: null,
+      },
+      SOC: {
+        socPercent: null,
+        socAh: null,
+        balanceSOCPercent: null,
+        balanceSOCAh: null,
+      },
+    };
+
+    // Process fetched data
+    fetchedData.forEach((item) => {
+      // Process Node0 data
+      for (let i = 0; i < 14; i++) {
+        const cellKey = `Node00Cell${i < 10 ? `0${i}` : i}`;
+        if (item[cellKey] !== undefined && item[cellKey] !== null) {
+          structuredData.Node0.voltage.cellVoltages[i].push(
+            roundToTwoDecimals(item[cellKey])
+          );
+        }
+      }
+
+      // Process Node0 temperature keys
+      for (let i = 0; i < 6; i++) {
+        const tempKey = `Node00Temp${i < 10 ? `0${i}` : i}`;
+        if (item[tempKey] !== undefined && item[tempKey] !== null) {
+          if (!structuredData.Node0.temperature[tempKey]) {
+            structuredData.Node0.temperature[tempKey] = [];
+          }
+          structuredData.Node0.temperature[tempKey].push(
+            roundToTwoDecimals(item[tempKey])
+          );
+        }
+      }
+
+      // Process Node1 data
+      for (let i = 0; i < 14; i++) {
+        const cellKey = `Node01Cell${i < 10 ? `0${i}` : i}`;
+        if (item[cellKey] !== undefined && item[cellKey] !== null) {
+          structuredData.Node1.voltage.cellVoltages[i].push(
+            roundToTwoDecimals(item[cellKey])
+          );
+        }
+      }
+
+      // Process Node1 temperature keys
+      for (let i = 0; i < 6; i++) {
+        const tempKey = `Node01Temp${i < 10 ? `0${i}` : i}`;
+        if (item[tempKey] !== undefined && item[tempKey] !== null) {
+          if (!structuredData.Node1.temperature[tempKey]) {
+            structuredData.Node1.temperature[tempKey] = [];
+          }
+          structuredData.Node1.temperature[tempKey].push(
+            roundToTwoDecimals(item[tempKey])
+          );
+        }
+      }
+
+      // Process Pack-Level Data
+      if (item.TotalBattVoltage !== undefined) {
+        structuredData.Pack = {
+          numParallelNodes:
+            item.PackNumParallelNodes || structuredData.Pack.numParallelNodes,
+          numNodes: item.PackNumNodes || structuredData.Pack.numNodes,
+          thresholdOverCurrent:
+            item.PackThresholdOverCurrent !== undefined
+              ? roundToTwoDecimals(item.PackThresholdOverCurrent)
+              : structuredData.Pack.thresholdOverCurrent,
+          modes: item.PackModes || structuredData.Pack.modes,
+          totalBattVoltage:
+            item.TotalBattVoltage !== undefined
+              ? roundToTwoDecimals(item.TotalBattVoltage)
+              : structuredData.Pack.totalBattVoltage,
+          totalLoadVoltage:
+            item.TotalLoadVoltage !== undefined
+              ? roundToTwoDecimals(item.TotalLoadVoltage)
+              : structuredData.Pack.totalLoadVoltage,
+          totalCurrent:
+            item.TotalCurrent !== undefined
+              ? roundToTwoDecimals(item.TotalCurrent)
+              : structuredData.Pack.totalCurrent,
+          serialNumber: item.SerialNumber || structuredData.Pack.serialNumber,
+          state: item.State || structuredData.Pack.state,
+          events: item.Events || structuredData.Pack.events,
+        };
+      }
+
+      // Process Cell-Level Data
+      if (
+        item.MaximumCellVoltage !== undefined ||
+        item.MinimumCellVoltage !== undefined
+      ) {
+        structuredData.Cell = {
+          maxCellVoltage:
+            item.MaximumCellVoltage !== undefined
+              ? roundToTwoDecimals(item.MaximumCellVoltage)
+              : structuredData.Cell.maxCellVoltage,
+          minCellVoltage:
+            item.MinimumCellVoltage !== undefined
+              ? roundToTwoDecimals(item.MinimumCellVoltage)
+              : structuredData.Cell.minCellVoltage,
+          maxCellVoltageCellNo:
+            item.MaximumCellVoltageCellNo ||
+            structuredData.Cell.maxCellVoltageCellNo,
+          minCellVoltageCellNo:
+            item.MinimumCellVoltageCellNo ||
+            structuredData.Cell.minCellVoltageCellNo,
+          maxCellVoltageNode:
+            item.MaximumCellVoltageNode ||
+            structuredData.Cell.maxCellVoltageNode,
+          minCellVoltageNode:
+            item.MinimumCellVoltageNode ||
+            structuredData.Cell.minCellVoltageNode,
+          thresholdOverVoltage:
+            item.CellThresholdOverVoltage !== undefined
+              ? roundToTwoDecimals(item.CellThresholdOverVoltage)
+              : structuredData.Cell.thresholdOverVoltage,
+          thresholdUnderVoltage:
+            item.CellThresholdUnderVoltage !== undefined
+              ? roundToTwoDecimals(item.CellThresholdUnderVoltage)
+              : structuredData.Cell.thresholdUnderVoltage,
+          criticalOverVoltThreshold:
+            item.CellCriticalOverVoltThreshold !== undefined
+              ? roundToTwoDecimals(item.CellCriticalOverVoltThreshold)
+              : structuredData.Cell.criticalOverVoltThreshold,
+          criticalUnderVoltThreshold:
+            item.CellCriticalUnderVoltThreshold !== undefined
+              ? roundToTwoDecimals(item.CellCriticalUnderVoltThreshold)
+              : structuredData.Cell.criticalUnderVoltThreshold,
+          balanceThresholdVoltage:
+            item.CellBalanceThresholdVoltage !== undefined
+              ? roundToTwoDecimals(item.CellBalanceThresholdVoltage)
+              : structuredData.Cell.balanceThresholdVoltage,
+        };
+      }
+
+      // Process Temperature Data
+      if (item.MaxCellTemp !== undefined || item.MinCellTemp !== undefined) {
+        structuredData.Temperature = {
+          maxCellTemp:
+            item.MaxCellTemp !== undefined
+              ? roundToTwoDecimals(item.MaxCellTemp)
+              : structuredData.Temperature.maxCellTemp,
+          minCellTemp:
+            item.MinCellTemp !== undefined
+              ? roundToTwoDecimals(item.MinCellTemp)
+              : structuredData.Temperature.minCellTemp,
+          maxCellTempNode:
+            item.MaxCellTempNode || structuredData.Temperature.maxCellTempNode,
+          minCellTempNode:
+            item.MinCellTempNode || structuredData.Temperature.minCellTempNode,
+          thresholdOverTemp:
+            item.TempThresholdOverTemp !== undefined
+              ? roundToTwoDecimals(item.TempThresholdOverTemp)
+              : structuredData.Temperature.thresholdOverTemp,
+          thresholdUnderTemp:
+            item.TempThresholdUnderTemp !== undefined
+              ? roundToTwoDecimals(item.TempThresholdUnderTemp)
+              : structuredData.Temperature.thresholdUnderTemp,
+        };
+      }
+
+      // Process SOC Data
+      if (item.SOCPercent !== undefined || item.SOCAh !== undefined) {
+        structuredData.SOC = {
+          socPercent:
+            item.SOCPercent !== undefined
+              ? roundToTwoDecimals(item.SOCPercent)
+              : structuredData.SOC.socPercent,
+          socAh:
+            item.SOCAh !== undefined
+              ? roundToTwoDecimals(item.SOCAh)
+              : structuredData.SOC.socAh,
+          balanceSOCPercent:
+            item.BalanceSOCPercent !== undefined
+              ? roundToTwoDecimals(item.BalanceSOCPercent)
+              : structuredData.SOC.balanceSOCPercent,
+          balanceSOCAh:
+            item.BalanceSOCAh !== undefined
+              ? roundToTwoDecimals(item.BalanceSOCAh)
+              : structuredData.SOC.balanceSOCAh,
+        };
+      }
+    });
+
+    return structuredData;
   } catch (error) {
-    console.error("Error during paginated query:", error);
+    console.error("Error in fetchData:", error.message);
     throw error;
+  }
+};
+
+// Battery anomalies functions
+export const getBatteryAnomalies = async (docClient, batteryId, limit = 50) => {
+  try {
+    const queryParams = {
+      TableName: "BatteryAnomalies_EC2",
+      IndexName: "tag_id-timestamp-index",
+      KeyConditionExpression: "tag_id = :batteryId",
+      ExpressionAttributeValues: {
+        ":batteryId": batteryId,
+      },
+      ScanIndexForward: false,
+      Limit: limit,
+    };
+
+    const scanParams = {
+      TableName: "BatteryAnomalies_EC2",
+      FilterExpression: "tag_id = :batteryId",
+      ExpressionAttributeValues: {
+        ":batteryId": batteryId,
+      },
+      Limit: limit,
+    };
+
+    let result;
+    try {
+      result = await docClient.query(queryParams).promise();
+    } catch (queryError) {
+      result = await docClient.scan(scanParams).promise();
+    }
+
+    const formattedAnomalies = result.Items.map((item) => ({
+      id: item.id,
+      timestamp: parseInt(item.timestamp) * 1000,
+      anomaly_score: parseFloat(item.anomaly_score),
+      detection_time: item.detection_time,
+      MaxCellTemp: parseFloat(item.MaxCellTemp),
+      MaximumCellVoltage: parseFloat(item.MaximumCellVoltage),
+      MinCellTemp: parseFloat(item.MinCellTemp),
+      MinimumCellVoltage: parseFloat(item.MinimumCellVoltage),
+      SOCAh: parseFloat(item.SOCAh),
+      SOCPercent: parseFloat(item.SOCPercent),
+      tag_id: item.tag_id,
+      TotalBattVoltage: parseFloat(item.TotalBattVoltage),
+      TotalCurrent: parseFloat(item.TotalCurrent),
+    }));
+
+    formattedAnomalies.sort((a, b) => b.timestamp - a.timestamp);
+
+    return {
+      success: true,
+      data: formattedAnomalies,
+      count: formattedAnomalies.length,
+    };
+  } catch (error) {
+    console.error("Error fetching battery anomalies:", error.message);
+    return {
+      success: false,
+      error: error.message,
+      data: [],
+      count: 0,
+    };
+  }
+};
+
+export const getAllBatteryAnomalies = async (docClient, limit = 50) => {
+  try {
+    const scanParams = {
+      TableName: "BatteryAnomalies_EC2",
+      Limit: limit,
+    };
+
+    const result = await docClient.scan(scanParams).promise();
+
+    const formattedAnomalies = result.Items.map((item) => ({
+      id: item.id,
+      timestamp: parseInt(item.timestamp) * 1000,
+      anomaly_score: parseFloat(item.anomaly_score),
+      detection_time: item.detection_time,
+      MaxCellTemp: parseFloat(item.MaxCellTemp),
+      MaximumCellVoltage: parseFloat(item.MaximumCellVoltage),
+      MinCellTemp: parseFloat(item.MinCellTemp),
+      MinimumCellVoltage: parseFloat(item.MinimumCellVoltage),
+      SOCAh: parseFloat(item.SOCAh),
+      SOCPercent: parseFloat(item.SOCPercent),
+      tag_id: item.tag_id,
+      TotalBattVoltage: parseFloat(item.TotalBattVoltage),
+      TotalCurrent: parseFloat(item.TotalCurrent),
+    }));
+
+    formattedAnomalies.sort((a, b) => b.timestamp - a.timestamp);
+
+    return {
+      success: true,
+      data: formattedAnomalies,
+      count: formattedAnomalies.length,
+      lastEvaluatedKey: result.LastEvaluatedKey,
+    };
+  } catch (error) {
+    console.error("Error fetching all battery anomalies:", error.message);
+    return {
+      success: false,
+      error: error.message,
+      data: [],
+      count: 0,
+    };
+  }
+};
+
+export const getAvailableBatteryIds = async (docClient) => {
+  try {
+    const params = {
+      TableName: "BatteryAnomalies_EC2",
+      ProjectionExpression: "tag_id",
+    };
+
+    const result = await docClient.scan(params).promise();
+    const uniqueIds = [...new Set(result.Items.map((item) => item.tag_id))];
+
+    return {
+      success: true,
+      data: uniqueIds.sort(),
+      count: uniqueIds.length,
+    };
+  } catch (error) {
+    console.error("Error fetching available battery IDs:", error.message);
+    return {
+      success: false,
+      error: error.message,
+      data: [],
+      count: 0,
+    };
   }
 };
 
@@ -741,12 +958,6 @@ export const getDataByTimestamp = async (
   return getTimeRangeData(docClient, tagID, timestamp, timestamp);
 };
 
-/**
- * Get the minimal essential fields for the latest battery reading
- * @param {Object} docClient - DynamoDB DocumentClient instance
- * @param {String} batteryId - Battery ID (e.g., "BAT-0x440")
- * @returns {Promise<Object>} Latest battery reading with only essential fields
- */
 export const getLatestReadingMinimal = async (docClient, batteryId) => {
   try {
     const params = {
@@ -757,10 +968,10 @@ export const getLatestReadingMinimal = async (docClient, batteryId) => {
       },
       ProjectionExpression: "TagID, #ts, Events, DeviceId",
       ExpressionAttributeNames: {
-        "#ts": "Timestamp", // Using alias since 'Timestamp' is a reserved word
+        "#ts": "Timestamp",
       },
       Limit: 1,
-      ScanIndexForward: false, // Descending order (newest first)
+      ScanIndexForward: false,
     };
 
     const result = await docClient.query(params).promise();
@@ -768,7 +979,6 @@ export const getLatestReadingMinimal = async (docClient, batteryId) => {
     if (result.Items.length > 0) {
       const item = result.Items[0];
 
-      // Convert to the expected format with DynamoDB attribute types
       return {
         TagID: item.TagID,
         Timestamp: { N: item.Timestamp.toString() },
@@ -781,7 +991,7 @@ export const getLatestReadingMinimal = async (docClient, batteryId) => {
   } catch (error) {
     console.error(
       `Error getting minimal latest reading for ${batteryId}:`,
-      error
+      error.message
     );
     throw error;
   }
