@@ -13,6 +13,29 @@ import awsconfig from "./aws-exports.js";
 // Table name
 const TABLE_NAME = "CAN_BMS_Data_Optimized";
 
+// Logging configuration
+const LOG_LEVELS = {
+  ERROR: 0,
+  WARN: 1,
+  INFO: 2,
+  DEBUG: 3
+};
+
+const CURRENT_LOG_LEVEL = LOG_LEVELS.INFO; // Adjust as needed
+
+const log = (level, message, data = null) => {
+  if (level <= CURRENT_LOG_LEVEL) {
+    const timestamp = new Date().toISOString();
+    const levelName = Object.keys(LOG_LEVELS).find(key => LOG_LEVELS[key] === level);
+    
+    if (data) {
+      console.log(`[${timestamp}] [${levelName}] ${message}`, data);
+    } else {
+      console.log(`[${timestamp}] [${levelName}] ${message}`);
+    }
+  }
+};
+
 // Helper function to convert DynamoDB format to app format
 const convertDynamoDBFormat = (item) => {
   if (!item) return item;
@@ -53,11 +76,35 @@ const roundToTwoDecimals = (value) => {
   return value;
 };
 
+// Helper function to build projection expression for bucket queries
+const buildBucketProjectionExpression = (attributes) => {
+  if (!attributes || attributes.length === 0) {
+    return {};
+  }
+
+  const attrNames = { "#ts": "Timestamp" };
+  const projectionItems = ["TagID", "#ts"];
+
+  attributes.forEach((attr, index) => {
+    if (attr !== "TagID" && attr !== "Timestamp") {
+      attrNames[`#attr${index}`] = attr;
+      projectionItems.push(`#attr${index}`);
+    }
+  });
+
+  return {
+    ExpressionAttributeNames: attrNames,
+    ProjectionExpression: projectionItems.join(", ")
+  };
+};
+
 /**
  * Get the latest reading for a battery
  */
 export const getLatestReading = async (docClient, batteryId) => {
   try {
+    log(LOG_LEVELS.INFO, `Getting latest reading for battery: ${batteryId}`);
+    
     const params = {
       TableName: TABLE_NAME,
       KeyConditionExpression: "TagID = :tid",
@@ -69,6 +116,8 @@ export const getLatestReading = async (docClient, batteryId) => {
     };
 
     const result = await docClient.query(params).promise();
+    
+    log(LOG_LEVELS.DEBUG, `Latest reading query returned ${result.Items.length} items`);
 
     if (result.Items.length > 0) {
       const item = result.Items[0];
@@ -91,12 +140,10 @@ export const getLatestReading = async (docClient, batteryId) => {
       return convertedItem;
     }
 
+    log(LOG_LEVELS.WARN, `No latest reading found for battery: ${batteryId}`);
     return null;
   } catch (error) {
-    console.error(
-      `Error getting latest reading for ${batteryId}:`,
-      error.message
-    );
+    log(LOG_LEVELS.ERROR, `Error getting latest reading for ${batteryId}:`, error);
     throw error;
   }
 };
@@ -112,6 +159,11 @@ export const getLastMinuteData = async (
   try {
     const now = Math.floor(Date.now() / 1000);
     const oneMinuteAgo = now - 60;
+    
+    log(LOG_LEVELS.INFO, `Getting last minute data for battery: ${batteryId}`, {
+      startTime: new Date(oneMinuteAgo * 1000).toISOString(),
+      endTime: new Date(now * 1000).toISOString()
+    });
 
     const params = {
       TableName: TABLE_NAME,
@@ -149,6 +201,8 @@ export const getLastMinuteData = async (
     }
 
     const result = await docClient.query(params).promise();
+    
+    log(LOG_LEVELS.DEBUG, `Last minute query returned ${result.Items.length} items`);
 
     return result.Items.map((item) => {
       const convertedItem = {};
@@ -168,10 +222,7 @@ export const getLastMinuteData = async (
       return convertedItem;
     });
   } catch (error) {
-    console.error(
-      `Error getting last minute data for ${batteryId}:`,
-      error.message
-    );
+    log(LOG_LEVELS.ERROR, `Error getting last minute data for ${batteryId}:`, error);
     throw error;
   }
 };
@@ -192,6 +243,11 @@ export const getLastHourData = async (
       date.getHours()
     ).padStart(2, "0")}`;
     const hourBucket = `${batteryId}#HOUR_${hourStr}`;
+    
+    log(LOG_LEVELS.INFO, `Getting last hour data for battery: ${batteryId}`, {
+      hourBucket,
+      currentTime: date.toISOString()
+    });
 
     const params = {
       TableName: TABLE_NAME,
@@ -202,36 +258,22 @@ export const getLastHourData = async (
       },
     };
 
+    // Add projection expression if attributes specified
     if (attributes && attributes.length > 0) {
-      const attrNames = {};
-      attributes.forEach((attr, index) => {
-        if (attr !== "TagID" && attr !== "Timestamp") {
-          attrNames[`#attr${index}`] = attr;
-        }
-      });
-
-      if (Object.keys(attrNames).length > 0) {
-        params.ExpressionAttributeNames = {
-          ...params.ExpressionAttributeNames,
-          ...attrNames,
-        };
-
-        const projectionItems = ["TagID", "#ts"];
-        Object.keys(attrNames).forEach((key) => {
-          projectionItems.push(key);
-        });
-
-        params.ProjectionExpression = projectionItems.join(", ");
+      const projection = buildBucketProjectionExpression(attributes);
+      if (projection.ExpressionAttributeNames) {
+        params.ExpressionAttributeNames = projection.ExpressionAttributeNames;
+        params.ProjectionExpression = projection.ProjectionExpression;
       }
     }
 
     const result = await docClient.query(params).promise();
+    
+    log(LOG_LEVELS.DEBUG, `Hour bucket query returned ${result.Items.length} items`);
+    
     return result.Items.map(convertDynamoDBFormat);
   } catch (error) {
-    console.error(
-      `Error getting last hour data for ${batteryId}:`,
-      error.message
-    );
+    log(LOG_LEVELS.ERROR, `Error getting last hour data for ${batteryId}:`, error);
     throw error;
   }
 };
@@ -246,11 +288,16 @@ export const getLastDayData = async (
 ) => {
   try {
     const date = new Date();
-    const dayStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(
+    const dayStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
       2,
       "0"
-    )}${String(date.getDate()).padStart(2, "0")}`;
-    const dayBucket = `${batteryId}#DAY_${dayStr}`;
+    )}-${String(date.getDate()).padStart(2, "0")}`;
+    const dayBucket = `${batteryId}#${dayStr}`;
+    
+    log(LOG_LEVELS.INFO, `Getting last day data for battery: ${batteryId}`, {
+      dayBucket,
+      currentDate: date.toISOString()
+    });
 
     const params = {
       TableName: TABLE_NAME,
@@ -261,36 +308,22 @@ export const getLastDayData = async (
       },
     };
 
+    // Add projection expression if attributes specified
     if (attributes && attributes.length > 0) {
-      const attrNames = {};
-      attributes.forEach((attr, index) => {
-        if (attr !== "TagID" && attr !== "Timestamp") {
-          attrNames[`#attr${index}`] = attr;
-        }
-      });
-
-      if (Object.keys(attrNames).length > 0) {
-        params.ExpressionAttributeNames = {
-          ...params.ExpressionAttributeNames,
-          ...attrNames,
-        };
-
-        const projectionItems = ["TagID", "#ts"];
-        Object.keys(attrNames).forEach((key) => {
-          projectionItems.push(key);
-        });
-
-        params.ProjectionExpression = projectionItems.join(", ");
+      const projection = buildBucketProjectionExpression(attributes);
+      if (projection.ExpressionAttributeNames) {
+        params.ExpressionAttributeNames = projection.ExpressionAttributeNames;
+        params.ProjectionExpression = projection.ProjectionExpression;
       }
     }
 
     const result = await docClient.query(params).promise();
+    
+    log(LOG_LEVELS.INFO, `Day bucket query returned ${result.Items.length} items for bucket: ${dayBucket}`);
+    
     return result.Items.map(convertDynamoDBFormat);
   } catch (error) {
-    console.error(
-      `Error getting last day data for ${batteryId}:`,
-      error.message
-    );
+    log(LOG_LEVELS.ERROR, `Error getting last day data for ${batteryId}:`, error);
     throw error;
   }
 };
@@ -309,6 +342,11 @@ export const getLastMonthData = async (
       date.getMonth() + 1
     ).padStart(2, "0")}`;
     const monthBucket = `${batteryId}#MONTH_${monthStr}`;
+    
+    log(LOG_LEVELS.INFO, `Getting last month data for battery: ${batteryId}`, {
+      monthBucket,
+      currentMonth: date.toISOString()
+    });
 
     const params = {
       TableName: TABLE_NAME,
@@ -319,36 +357,22 @@ export const getLastMonthData = async (
       },
     };
 
+    // Add projection expression if attributes specified
     if (attributes && attributes.length > 0) {
-      const attrNames = {};
-      attributes.forEach((attr, index) => {
-        if (attr !== "TagID" && attr !== "Timestamp") {
-          attrNames[`#attr${index}`] = attr;
-        }
-      });
-
-      if (Object.keys(attrNames).length > 0) {
-        params.ExpressionAttributeNames = {
-          ...params.ExpressionAttributeNames,
-          ...attrNames,
-        };
-
-        const projectionItems = ["TagID", "#ts"];
-        Object.keys(attrNames).forEach((key) => {
-          projectionItems.push(key);
-        });
-
-        params.ProjectionExpression = projectionItems.join(", ");
+      const projection = buildBucketProjectionExpression(attributes);
+      if (projection.ExpressionAttributeNames) {
+        params.ExpressionAttributeNames = projection.ExpressionAttributeNames;
+        params.ProjectionExpression = projection.ProjectionExpression;
       }
     }
 
     const result = await docClient.query(params).promise();
+    
+    log(LOG_LEVELS.DEBUG, `Month bucket query returned ${result.Items.length} items`);
+    
     return result.Items.map(convertDynamoDBFormat);
   } catch (error) {
-    console.error(
-      `Error getting last month data for ${batteryId}:`,
-      error.message
-    );
+    log(LOG_LEVELS.ERROR, `Error getting last month data for ${batteryId}:`, error);
     throw error;
   }
 };
@@ -364,6 +388,12 @@ export const getTimeRangeData = async (
   attributes = null
 ) => {
   try {
+    log(LOG_LEVELS.INFO, `Getting time range data for battery: ${batteryId}`, {
+      startTime: new Date(startTime * 1000).toISOString(),
+      endTime: new Date(endTime * 1000).toISOString(),
+      duration: `${(endTime - startTime) / 60} minutes`
+    });
+
     const params = {
       TableName: TABLE_NAME,
       KeyConditionExpression: "TagID = :tid AND #ts BETWEEN :start AND :end",
@@ -401,12 +431,12 @@ export const getTimeRangeData = async (
     }
 
     const result = await docClient.query(params).promise();
+    
+    log(LOG_LEVELS.DEBUG, `Time range query returned ${result.Items.length} items`);
+    
     return result.Items.map(convertDynamoDBFormat);
   } catch (error) {
-    console.error(
-      `Error getting time range data for ${batteryId}:`,
-      error.message
-    );
+    log(LOG_LEVELS.ERROR, `Error getting time range data for ${batteryId}:`, error);
     throw error;
   }
 };
@@ -421,16 +451,25 @@ export const getLast7DaysData = async (
 ) => {
   try {
     const dayBuckets = [];
+    const dateInfo = [];
+    
     for (let i = 0; i < 7; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      const dayStr = `${date.getFullYear()}${String(
+      const dayStr = `${date.getFullYear()}-${String(
         date.getMonth() + 1
-      ).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
-      dayBuckets.push(`${batteryId}#DAY_${dayStr}`);
+      ).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const bucket = `${batteryId}#${dayStr}`;
+      
+      dayBuckets.push(bucket);
+      dateInfo.push({ day: i, date: date.toISOString(), bucket });
     }
+    
+    log(LOG_LEVELS.INFO, `Getting last 7 days data for battery: ${batteryId}`, {
+      buckets: dayBuckets
+    });
 
-    const queryPromises = dayBuckets.map((bucket) => {
+    const queryPromises = dayBuckets.map((bucket, index) => {
       const params = {
         TableName: TABLE_NAME,
         IndexName: "DailyBucketIndex",
@@ -440,49 +479,46 @@ export const getLast7DaysData = async (
         },
       };
 
+      // Add projection expression if attributes specified
       if (attributes && attributes.length > 0) {
-        const attrNames = {};
-        attributes.forEach((attr, index) => {
-          if (attr !== "TagID" && attr !== "Timestamp") {
-            attrNames[`#attr${index}`] = attr;
-          }
-        });
-
-        if (Object.keys(attrNames).length > 0) {
-          params.ExpressionAttributeNames = {
-            ...params.ExpressionAttributeNames,
-            ...attrNames,
-          };
-
-          const projectionItems = ["TagID", "#ts"];
-          Object.keys(attrNames).forEach((key) => {
-            projectionItems.push(key);
-          });
-
-          params.ProjectionExpression = projectionItems.join(", ");
+        const projection = buildBucketProjectionExpression(attributes);
+        if (projection.ExpressionAttributeNames) {
+          params.ExpressionAttributeNames = projection.ExpressionAttributeNames;
+          params.ProjectionExpression = projection.ProjectionExpression;
         }
       }
 
-      return docClient.query(params).promise();
+      return docClient.query(params).promise()
+        .then(result => {
+          log(LOG_LEVELS.DEBUG, `Day ${index} (${bucket}) returned ${result.Items.length} items`);
+          return result;
+        })
+        .catch(error => {
+          log(LOG_LEVELS.ERROR, `Error querying bucket ${bucket}:`, error);
+          return { Items: [] }; // Return empty items on error
+        });
     });
 
     const results = await Promise.all(queryPromises);
     const allItems = results.flatMap((result) => result.Items || []);
+    
+    log(LOG_LEVELS.INFO, `7-day query returned total ${allItems.length} items`);
+    
     return allItems.map(convertDynamoDBFormat);
   } catch (error) {
-    console.error(
-      `Error getting last 7 days data for ${batteryId}:`,
-      error.message
-    );
+    log(LOG_LEVELS.ERROR, `Error getting last 7 days data for ${batteryId}:`, error);
     throw error;
   }
 };
 
 /**
  * Main data fetching function - consolidated from DataFetcher.js
+ * Modified to use custom time range for 1hour case instead of hour bucket index
  */
 export const fetchData = async (selectedTagId, selectedTimeRange) => {
   try {
+    log(LOG_LEVELS.INFO, `Starting fetchData for TagId: ${selectedTagId}, TimeRange: ${selectedTimeRange}`);
+    
     const session = await fetchAuthSession();
     const credentials = session.credentials;
 
@@ -515,16 +551,24 @@ export const fetchData = async (selectedTagId, selectedTimeRange) => {
         );
         break;
       case "1hour":
-        fetchedData = await getLastHourData(docClient, batteryId);
-        break;
-      case "8hours":
-        const eightHoursAgo = Math.floor(Date.now() / 1000) - 28800;
+        // MODIFIED: Use custom time range instead of hour bucket index
+        const oneHourAgo = Math.floor(Date.now() / 1000) - 3600; // 3600 seconds = 1 hour
         const currentTime = Math.floor(Date.now() / 1000);
         fetchedData = await getTimeRangeData(
           docClient,
           batteryId,
-          eightHoursAgo,
+          oneHourAgo,
           currentTime
+        );
+        break;
+      case "8hours":
+        const eightHoursAgo = Math.floor(Date.now() / 1000) - 28800;
+        const currentTimeEight = Math.floor(Date.now() / 1000);
+        fetchedData = await getTimeRangeData(
+          docClient,
+          batteryId,
+          eightHoursAgo,
+          currentTimeEight
         );
         break;
       case "1day":
@@ -537,13 +581,21 @@ export const fetchData = async (selectedTagId, selectedTimeRange) => {
         fetchedData = await getLastMonthData(docClient, batteryId);
         break;
       default:
-        fetchedData = await getLastHourData(docClient, batteryId);
+        // Default also changed to use custom time range for 1 hour
+        const defaultOneHourAgo = Math.floor(Date.now() / 1000) - 3600;
+        const defaultCurrentTime = Math.floor(Date.now() / 1000);
+        fetchedData = await getTimeRangeData(
+          docClient,
+          batteryId,
+          defaultOneHourAgo,
+          defaultCurrentTime
+        );
     }
 
+    log(LOG_LEVELS.INFO, `Fetched ${fetchedData.length} items for ${batteryId}`);
+
     if (!fetchedData || fetchedData.length === 0) {
-      console.warn(
-        `No data found for ${batteryId} in time range ${selectedTimeRange}`
-      );
+      log(LOG_LEVELS.WARN, `No data found for ${batteryId} in time range ${selectedTimeRange}`);
       return {
         error: "No data found",
         batteryId,
@@ -793,9 +845,10 @@ export const fetchData = async (selectedTagId, selectedTimeRange) => {
       }
     });
 
+    log(LOG_LEVELS.INFO, `Successfully processed data for ${batteryId}`);
     return structuredData;
   } catch (error) {
-    console.error("Error in fetchData:", error.message);
+    log(LOG_LEVELS.ERROR, "Error in fetchData:", error);
     throw error;
   }
 };
@@ -803,6 +856,8 @@ export const fetchData = async (selectedTagId, selectedTimeRange) => {
 // Battery anomalies functions
 export const getBatteryAnomalies = async (docClient, batteryId, limit = 50) => {
   try {
+    log(LOG_LEVELS.INFO, `Getting battery anomalies for: ${batteryId}, limit: ${limit}`);
+    
     const queryParams = {
       TableName: "BatteryAnomalies_EC2",
       IndexName: "tag_id-timestamp-index",
@@ -826,7 +881,9 @@ export const getBatteryAnomalies = async (docClient, batteryId, limit = 50) => {
     let result;
     try {
       result = await docClient.query(queryParams).promise();
+      log(LOG_LEVELS.DEBUG, `Anomalies query returned ${result.Items.length} items`);
     } catch (queryError) {
+      log(LOG_LEVELS.WARN, `Query failed, falling back to scan`, queryError);
       result = await docClient.scan(scanParams).promise();
     }
 
@@ -854,7 +911,7 @@ export const getBatteryAnomalies = async (docClient, batteryId, limit = 50) => {
       count: formattedAnomalies.length,
     };
   } catch (error) {
-    console.error("Error fetching battery anomalies:", error.message);
+    log(LOG_LEVELS.ERROR, "Error fetching battery anomalies:", error);
     return {
       success: false,
       error: error.message,
@@ -866,12 +923,16 @@ export const getBatteryAnomalies = async (docClient, batteryId, limit = 50) => {
 
 export const getAllBatteryAnomalies = async (docClient, limit = 50) => {
   try {
+    log(LOG_LEVELS.INFO, `Getting all battery anomalies, limit: ${limit}`);
+    
     const scanParams = {
       TableName: "BatteryAnomalies_EC2",
       Limit: limit,
     };
 
     const result = await docClient.scan(scanParams).promise();
+    
+    log(LOG_LEVELS.DEBUG, `All anomalies scan returned ${result.Items.length} items`);
 
     const formattedAnomalies = result.Items.map((item) => ({
       id: item.id,
@@ -898,7 +959,7 @@ export const getAllBatteryAnomalies = async (docClient, limit = 50) => {
       lastEvaluatedKey: result.LastEvaluatedKey,
     };
   } catch (error) {
-    console.error("Error fetching all battery anomalies:", error.message);
+    log(LOG_LEVELS.ERROR, "Error fetching all battery anomalies:", error);
     return {
       success: false,
       error: error.message,
@@ -910,6 +971,8 @@ export const getAllBatteryAnomalies = async (docClient, limit = 50) => {
 
 export const getAvailableBatteryIds = async (docClient) => {
   try {
+    log(LOG_LEVELS.INFO, `Getting available battery IDs`);
+    
     const params = {
       TableName: "BatteryAnomalies_EC2",
       ProjectionExpression: "tag_id",
@@ -917,6 +980,8 @@ export const getAvailableBatteryIds = async (docClient) => {
 
     const result = await docClient.scan(params).promise();
     const uniqueIds = [...new Set(result.Items.map((item) => item.tag_id))];
+    
+    log(LOG_LEVELS.DEBUG, `Found ${uniqueIds.length} unique battery IDs`);
 
     return {
       success: true,
@@ -924,7 +989,7 @@ export const getAvailableBatteryIds = async (docClient) => {
       count: uniqueIds.length,
     };
   } catch (error) {
-    console.error("Error fetching available battery IDs:", error.message);
+    log(LOG_LEVELS.ERROR, "Error fetching available battery IDs:", error);
     return {
       success: false,
       error: error.message,
@@ -960,6 +1025,8 @@ export const getDataByTimestamp = async (
 
 export const getLatestReadingMinimal = async (docClient, batteryId) => {
   try {
+    log(LOG_LEVELS.INFO, `Getting minimal latest reading for battery: ${batteryId}`);
+    
     const params = {
       TableName: TABLE_NAME,
       KeyConditionExpression: "TagID = :tid",
@@ -987,12 +1054,10 @@ export const getLatestReadingMinimal = async (docClient, batteryId) => {
       };
     }
 
+    log(LOG_LEVELS.WARN, `No minimal latest reading found for battery: ${batteryId}`);
     return null;
   } catch (error) {
-    console.error(
-      `Error getting minimal latest reading for ${batteryId}:`,
-      error.message
-    );
+    log(LOG_LEVELS.ERROR, `Error getting minimal latest reading for ${batteryId}:`, error);
     throw error;
   }
 };

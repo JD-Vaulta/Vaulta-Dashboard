@@ -145,13 +145,13 @@ const MLDashboardContainer = ({ signOut, bmsData }) => {
 
   const getAnomalySeverity = (score) => {
     const numScore = parseFloat(score);
-    if (numScore > 150)
+    if (numScore > 35)
       return {
         level: "High",
         color: colors.accentRed,
         bg: "rgba(244, 67, 54, 0.1)",
       };
-    if (numScore > 100)
+    if (numScore > 25)
       return {
         level: "Medium",
         color: colors.highlight,
@@ -535,20 +535,20 @@ const MLDashboardContainer = ({ signOut, bmsData }) => {
                         </span>
                       </div>
                       <div>
-                        <span style={{ color: colors.textLight }}>
+                        {/* <span style={{ color: colors.textLight }}>
                           Anomaly Score:{" "}
                         </span>
                         <span
                           style={{ fontWeight: "500", color: severity.color }}
                         >
                           {roundTo2(anomaly.anomaly_score)}
-                        </span>
+                        </span> */}
                       </div>
                       <div>
-                        <span style={{ color: colors.textLight }}>SOC: </span>
+                        {/* <span style={{ color: colors.textLight }}>SOC: </span>
                         <span style={{ fontWeight: "500" }}>
                           {roundTo2(anomaly.SOCPercent)}%
-                        </span>
+                        </span> */}
                       </div>
                       <div>
                         <span style={{ color: colors.textLight }}>
@@ -723,8 +723,7 @@ const MLDashboardContainer = ({ signOut, bmsData }) => {
                       textAlign: "center",
                     }}
                   >
-                    {severity.level} Risk Anomaly (Score:{" "}
-                    {roundTo2(selectedAnomaly.anomaly_score)})
+                    {severity.level} Risk Anomaly 
                   </div>
                 );
               })()}
@@ -795,13 +794,7 @@ const MLDashboardContainer = ({ signOut, bmsData }) => {
                   <div
                     style={{ display: "grid", gap: "10px", fontSize: "14px" }}
                   >
-                    <div>
-                      <strong>SOC:</strong>{" "}
-                      {roundTo2(selectedAnomaly.SOCPercent)}%
-                    </div>
-                    <div>
-                      <strong>SOC Ah:</strong> {roundTo2(selectedAnomaly.SOCAh)}
-                    </div>
+                    
                     <div>
                       <strong>Total Voltage:</strong>{" "}
                       {roundTo2(selectedAnomaly.TotalBattVoltage)}V

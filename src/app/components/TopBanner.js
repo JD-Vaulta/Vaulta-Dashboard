@@ -98,7 +98,7 @@ const TopBanner = ({
     { label: "User Management", path: "/user-management" },
     { label: "Data Analytics", path: "/data-analytics" },
     { label: "ML Dashboard", path: "/ml-dashboard" },
-    { label: "System Settings", path: "/system-settings" },
+ // { label: "System Settings", path: "/system-settings" },
     { label: "Energy Monitor", path: "/energy-monitor" },
     { label: "Diagnostics", path: "/diagnostics" },
     { label: "Warranty", path: "/warranty" },

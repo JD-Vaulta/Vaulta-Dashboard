@@ -39,9 +39,6 @@ const Diagnostics = ({ bmsData, user }) => {
   const [isLoadingUserEmail, setIsLoadingUserEmail] = useState(true);
 
   // Get user email from Cognito on component mount
-  // Modify the getUserEmail function in the Diagnostics component
-
-  // Get user email from Cognito on component mount
   useEffect(() => {
     const getUserEmail = async () => {
       setIsLoadingUserEmail(true);
@@ -400,16 +397,21 @@ const Diagnostics = ({ bmsData, user }) => {
       <div
         style={{
           flex: 1,
-          overflow: "auto",
+          overflow: "hidden",
           padding: "10px",
+          display: "flex",
+          gap: "20px",
         }}
       >
+        {/* Left Half - System Health Check */}
         <div
           style={{
+            width: "50%",
             backgroundColor: colors.background,
             padding: "20px",
             borderRadius: "10px",
-            marginBottom: "20px",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
           <h2
@@ -423,124 +425,468 @@ const Diagnostics = ({ bmsData, user }) => {
             System Health Check
           </h2>
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "20px" }}>
+          <div style={{ 
+            display: "grid", 
+            gridTemplateColumns: "1fr 1fr",
+            gridTemplateRows: "1fr 1fr",
+            gap: "15px",
+            flex: 1
+          }}>
             <div
               style={{
-                flex: "1 1 300px",
                 backgroundColor: "#fff",
-                padding: "20px",
+                padding: "15px",
                 borderRadius: "8px",
                 boxShadow: "0px 2px 6px rgba(0,0,0,0.05)",
+                display: "flex",
+                flexDirection: "column",
               }}
             >
               <h3
                 style={{
-                  fontSize: "1rem",
-                  marginBottom: "10px",
+                  fontSize: "0.95rem",
+                  marginBottom: "12px",
                   color: colors.textDark,
+                  borderBottom: `1px solid ${colors.secondary}`,
+                  paddingBottom: "6px",
                 }}
               >
                 Battery Status
               </h3>
-              <p style={{ color: colors.textLight }}>
-                State of Charge: {currentData.SOCPercent?.N || "N/A"}%
-              </p>
-              <p style={{ color: colors.textLight }}>
-                Health Status:{" "}
-                <span
-                  style={{
-                    color:
-                      parseFloat(currentData.SOH_Estimate?.N || 0) > 90
+              <div style={{ flex: 1, fontSize: "0.85rem" }}>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  SOC: {parseFloat(currentData.SOCPercent?.N || 0).toFixed(2)}%
+                </p>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  State:{" "}
+                  <span
+                    style={{
+                      color: currentData.State?.S === "BMS_STATE_ALL_ENABLED"
                         ? colors.accentGreen
-                        : parseFloat(currentData.SOH_Estimate?.N || 0) > 70
-                        ? colors.highlight
-                        : colors.accentRed,
-                  }}
-                >
-                  {parseFloat(currentData.SOH_Estimate?.N || 0) > 90
-                    ? "Excellent"
-                    : parseFloat(currentData.SOH_Estimate?.N || 0) > 70
-                    ? "Good"
-                    : "Needs Attention"}
-                </span>
-              </p>
-              <p style={{ color: colors.textLight }}>
-                Temperature: {currentData.MaxCellTemp?.N || "N/A"}°C
-              </p>
-              <p style={{ color: colors.textLight }}>
-                Voltage: {currentData.TotalBattVoltage?.N || "N/A"}V
-              </p>
+                        : colors.highlight,
+                      fontWeight: "500",
+                    }}
+                  >
+                    {currentData.State?.S === "BMS_STATE_ALL_ENABLED"
+                      ? "Enabled"
+                      : currentData.State?.S || "Unknown"}
+                  </span>
+                </p>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  Temp: {parseFloat(currentData.MaxCellTemp?.N || 0).toFixed(2)}°C
+                  <span style={{ 
+                    fontSize: "0.8rem", 
+                    color: parseFloat(currentData.MaxCellTemp?.N || 0) < parseFloat(currentData.TempThresholdOverTemp?.N || 60)
+                      ? colors.accentGreen
+                      : colors.accentRed,
+                    marginLeft: "5px"
+                  }}>
+                    ({parseFloat(currentData.MaxCellTemp?.N || 0) < parseFloat(currentData.TempThresholdOverTemp?.N || 60) 
+                      ? "OK" 
+                      : "High"})
+                  </span>
+                </p>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  Voltage: {parseFloat(currentData.TotalBattVoltage?.N || 0).toFixed(2)}V
+                </p>
+                <p style={{ color: colors.textLight }}>
+                  Current: {parseFloat(currentData.TotalCurrent?.N || 0).toFixed(2)}A
+                </p>
+              </div>
             </div>
 
             <div
               style={{
-                flex: "1 1 300px",
                 backgroundColor: "#fff",
-                padding: "20px",
+                padding: "15px",
                 borderRadius: "8px",
                 boxShadow: "0px 2px 6px rgba(0,0,0,0.05)",
+                display: "flex",
+                flexDirection: "column",
               }}
             >
               <h3
                 style={{
-                  fontSize: "1rem",
-                  marginBottom: "10px",
+                  fontSize: "0.95rem",
+                  marginBottom: "12px",
                   color: colors.textDark,
+                  borderBottom: `1px solid ${colors.secondary}`,
+                  paddingBottom: "6px",
+                }}
+              >
+                Cell Health
+              </h3>
+              <div style={{ flex: 1, fontSize: "0.85rem" }}>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  Range: {parseFloat(currentData.MinimumCellVoltage?.N || 0).toFixed(2)}V - {parseFloat(currentData.MaximumCellVoltage?.N || 0).toFixed(2)}V
+                </p>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  Delta: {
+                    ((parseFloat(currentData.MaximumCellVoltage?.N || 0) - 
+                      parseFloat(currentData.MinimumCellVoltage?.N || 0)) * 1000).toFixed(2)
+                  } mV
+                </p>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  Min: N{currentData.MinimumCellVoltageNode?.N || "?"}, C{currentData.MinimumCellVoltageCellNo?.N || "?"}
+                </p>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  Max: N{currentData.MaximumCellVoltageNode?.N || "?"}, C{currentData.MaximumCellVoltageCellNo?.N || "?"}
+                </p>
+                <div style={{ 
+                  marginTop: "auto", 
+                  padding: "6px", 
+                  backgroundColor: parseFloat(currentData.MinimumCellVoltage?.N || 0) > parseFloat(currentData.CellThresholdUnderVoltage?.N || 2.8)
+                    ? "rgba(76, 175, 80, 0.1)"
+                    : "rgba(244, 67, 54, 0.1)",
+                  borderRadius: "4px",
+                  fontSize: "0.8rem"
+                }}>
+                  <span style={{ 
+                    color: parseFloat(currentData.MinimumCellVoltage?.N || 0) > parseFloat(currentData.CellThresholdUnderVoltage?.N || 2.8)
+                      ? colors.accentGreen
+                      : colors.accentRed,
+                    fontWeight: "500"
+                  }}>
+                    {parseFloat(currentData.MinimumCellVoltage?.N || 0) > parseFloat(currentData.CellThresholdUnderVoltage?.N || 2.8)
+                      ? "✓ Above threshold"
+                      : "⚠ Below threshold"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: "#fff",
+                padding: "15px",
+                borderRadius: "8px",
+                boxShadow: "0px 2px 6px rgba(0,0,0,0.05)",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: "0.95rem",
+                  marginBottom: "12px",
+                  color: colors.textDark,
+                  borderBottom: `1px solid ${colors.secondary}`,
+                  paddingBottom: "6px",
+                }}
+              >
+                Balance & Events
+              </h3>
+              <div style={{ flex: 1, fontSize: "0.85rem" }}>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  Node 0: {currentData.Node00BalanceStatus?.N === "0" ? "false" : "true"}
+                </p>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  Node 1: {currentData.Node01BalanceStatus?.N === "0" ? "false" : "true"}
+                </p>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  Balance SOC: {parseFloat(currentData.BalanceSOCPercent?.N || 0).toFixed(2)}%
+                </p>
+                <p style={{ color: colors.textLight, marginBottom: "6px" }}>
+                  Threshold: {parseFloat(currentData.CellBalanceThresholdVoltage?.N || 0).toFixed(2)}V
+                </p>
+                <div style={{ 
+                  marginTop: "auto", 
+                  padding: "6px", 
+                  backgroundColor: colors.background,
+                  borderRadius: "4px",
+                  borderLeft: `3px solid ${colors.accentBlue}`
+                }}>
+                  <p style={{ 
+                    fontSize: "0.8rem", 
+                    color: colors.textDark,
+                    fontWeight: "500",
+                    margin: 0
+                  }}>
+                    Events: {parseInt(currentData.Events?.N || 0).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: "#fff",
+                padding: "15px",
+                borderRadius: "8px",
+                boxShadow: "0px 2px 6px rgba(0,0,0,0.05)",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: "0.95rem",
+                  marginBottom: "12px",
+                  color: colors.textDark,
+                  borderBottom: `1px solid ${colors.secondary}`,
+                  paddingBottom: "6px",
                 }}
               >
                 System Alerts
               </h3>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", fontSize: "0.85rem" }}>
+                {(() => {
+                  const alerts = [];
+                  
+                  // Check voltage alerts
+                  if (parseFloat(currentData.MinimumCellVoltage?.N || 0) <= parseFloat(currentData.CellThresholdUnderVoltage?.N || 2.8)) {
+                    alerts.push({ type: "warning", message: "Undervoltage" });
+                  }
+                  if (parseFloat(currentData.MaximumCellVoltage?.N || 0) >= parseFloat(currentData.CellThresholdOverVoltage?.N || 3.65)) {
+                    alerts.push({ type: "warning", message: "Overvoltage" });
+                  }
+                  
+                  // Check temperature alerts
+                  if (parseFloat(currentData.MaxCellTemp?.N || 0) >= parseFloat(currentData.TempThresholdOverTemp?.N || 60)) {
+                    alerts.push({ type: "critical", message: "Over temp" });
+                  }
+                  
+                  // Check current alerts
+                  if (Math.abs(parseFloat(currentData.TotalCurrent?.N || 0)) >= parseFloat(currentData.PackThresholdOverCurrent?.N || 80)) {
+                    alerts.push({ type: "warning", message: "High current" });
+                  }
+                  
+                  // Check cell balance
+                  const voltageDelta = parseFloat(currentData.MaximumCellVoltage?.N || 0) - parseFloat(currentData.MinimumCellVoltage?.N || 0);
+                  if (voltageDelta > 0.1) {
+                    alerts.push({ type: "info", message: `Imbalance: ${(voltageDelta * 1000).toFixed(0)}mV` });
+                  }
+                  
+                  if (alerts.length === 0) {
+                    return (
+                      <div
+                        style={{
+                          padding: "8px",
+                          backgroundColor: "#e8f5e9",
+                          borderRadius: "4px",
+                          color: colors.accentGreen,
+                          marginBottom: "8px",
+                        }}
+                      >
+                        ✓ All systems normal
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div style={{ flex: 1, overflowY: "auto" }}>
+                        {alerts.map((alert, index) => (
+                          <div
+                            key={index}
+                            style={{
+                              padding: "6px",
+                              marginBottom: "4px",
+                              backgroundColor: 
+                                alert.type === "critical" ? "rgba(244, 67, 54, 0.1)" :
+                                alert.type === "warning" ? "rgba(255, 193, 7, 0.1)" :
+                                "rgba(33, 150, 243, 0.1)",
+                              borderRadius: "4px",
+                              borderLeft: `3px solid ${
+                                alert.type === "critical" ? colors.accentRed :
+                                alert.type === "warning" ? colors.highlight :
+                                colors.accentBlue
+                              }`,
+                              fontSize: "0.8rem",
+                              color: colors.textDark,
+                            }}
+                          >
+                            {alert.message}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                })()}
+                <div style={{ marginTop: "auto" }}>
+                  <p style={{ color: colors.textLight, fontSize: "0.75rem" }}>
+                    Last: {currentData.Timestamp?.N 
+                      ? new Date(parseInt(currentData.Timestamp.N) * 1000).toLocaleTimeString() 
+                      : "N/A"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Half - SNS Notification Management */}
+        <div
+          style={{
+            width: "50%",
+            backgroundColor: colors.background,
+            padding: "20px",
+            borderRadius: "10px",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "1.2rem",
+              fontWeight: "600",
+              marginBottom: "15px",
+              color: colors.textDark,
+              borderBottom: `1px solid ${colors.secondary}`,
+              paddingBottom: "10px",
+            }}
+          >
+            SNS Notification Management
+          </h2>
+
+          <div style={{ 
+            flex: 1,
+            backgroundColor: "#fff",
+            padding: "20px",
+            borderRadius: "8px",
+            boxShadow: "0px 2px 6px rgba(0,0,0,0.05)",
+            overflow: "auto"
+          }}>
+            {isLoadingUserEmail ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "15px",
+                  color: colors.textLight,
+                }}
+              >
+                Loading your profile information...
+              </div>
+            ) : !userEmail ? (
               <div
                 style={{
                   padding: "10px",
-                  backgroundColor: "#e8f5e9",
-                  borderRadius: "5px",
-                  color: colors.accentGreen,
+                  backgroundColor: "#ffebee",
+                  borderRadius: "4px",
+                  color: colors.accentRed,
                   marginBottom: "10px",
                 }}
               >
-                No active alerts
+                Could not retrieve your email address. Notification
+                management is unavailable.
               </div>
-              <p style={{ color: colors.textLight }}>
-                Last Diagnostic Run: {new Date().toLocaleDateString()}
-              </p>
-              <p style={{ color: colors.textLight }}>
-                Alert History: 0 alerts in the past 30 days
-              </p>
-
-              {/* SNS Alert Subscription Section */}
-              <div
-                style={{
-                  marginTop: "15px",
-                  padding: "15px",
-                  backgroundColor: colors.background,
-                  borderRadius: "5px",
-                  border: `1px solid ${colors.secondary}`,
-                }}
-              >
-                <h4
+            ) : (
+              <>
+                {/* User Email Display */}
+                <div
                   style={{
-                    fontSize: "0.9rem",
                     marginBottom: "15px",
-                    color: colors.textDark,
-                    borderBottom: `1px solid ${colors.secondary}`,
-                    paddingBottom: "8px",
+                    padding: "10px",
+                    backgroundColor: "rgba(33, 150, 243, 0.1)",
+                    borderRadius: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
                   }}
                 >
-                  SNS Notification Management
-                </h4>
-
-                {isLoadingUserEmail ? (
                   <div
                     style={{
-                      textAlign: "center",
-                      padding: "15px",
-                      color: colors.textLight,
+                      backgroundColor: colors.accentBlue,
+                      color: "white",
+                      width: "30px",
+                      height: "30px",
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "0.9rem",
                     }}
                   >
-                    Loading your profile information...
+                    @
                   </div>
-                ) : !userEmail ? (
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "0.85rem",
+                        color: colors.textLight,
+                        margin: 0,
+                      }}
+                    >
+                      Managing notifications for:
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "0.95rem",
+                        color: colors.textDark,
+                        fontWeight: "500",
+                        margin: "3px 0 0 0",
+                      }}
+                    >
+                      {userEmail}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tab Navigation */}
+                <div
+                  style={{
+                    display: "flex",
+                    marginBottom: "15px",
+                    borderBottom: `1px solid ${colors.secondary}`,
+                  }}
+                >
+                  <button
+                    onClick={() => setActiveTab("subscribe")}
+                    style={{
+                      padding: "8px 16px",
+                      backgroundColor:
+                        activeTab === "subscribe"
+                          ? colors.accentBlue
+                          : "transparent",
+                      color:
+                        activeTab === "subscribe"
+                          ? "#fff"
+                          : colors.textDark,
+                      border: "none",
+                      borderBottom:
+                        activeTab === "subscribe"
+                          ? `2px solid ${colors.accentBlue}`
+                          : "none",
+                      borderTopLeftRadius: "5px",
+                      borderTopRightRadius: "5px",
+                      cursor: "pointer",
+                      fontWeight:
+                        activeTab === "subscribe" ? "600" : "normal",
+                      fontSize: "0.85rem",
+                      marginRight: "5px",
+                      marginBottom: "-1px",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    Subscribe
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("manage")}
+                    style={{
+                      padding: "8px 16px",
+                      backgroundColor:
+                        activeTab === "manage"
+                          ? colors.accentBlue
+                          : "transparent",
+                      color:
+                        activeTab === "manage" ? "#fff" : colors.textDark,
+                      border: "none",
+                      borderBottom:
+                        activeTab === "manage"
+                          ? `2px solid ${colors.accentBlue}`
+                          : "none",
+                      borderTopLeftRadius: "5px",
+                      borderTopRightRadius: "5px",
+                      cursor: "pointer",
+                      fontWeight: activeTab === "manage" ? "600" : "normal",
+                      fontSize: "0.85rem",
+                      marginBottom: "-1px",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    Manage Subscriptions
+                  </button>
+                </div>
+
+                {fetchError ? (
                   <div
                     style={{
                       padding: "10px",
@@ -550,565 +896,310 @@ const Diagnostics = ({ bmsData, user }) => {
                       marginBottom: "10px",
                     }}
                   >
-                    Could not retrieve your email address. Notification
-                    management is unavailable.
+                    {fetchError}
                   </div>
                 ) : (
                   <>
-                    {/* User Email Display */}
-                    <div
-                      style={{
-                        marginBottom: "15px",
-                        padding: "10px",
-                        backgroundColor: "rgba(33, 150, 243, 0.1)",
-                        borderRadius: "4px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          backgroundColor: colors.accentBlue,
-                          color: "white",
-                          width: "30px",
-                          height: "30px",
-                          borderRadius: "50%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "0.9rem",
-                        }}
-                      >
-                        @
-                      </div>
-                      <div>
-                        <p
-                          style={{
-                            fontSize: "0.85rem",
-                            color: colors.textLight,
-                            margin: 0,
-                          }}
-                        >
-                          Managing notifications for:
-                        </p>
-                        <p
-                          style={{
-                            fontSize: "0.95rem",
-                            color: colors.textDark,
-                            fontWeight: "500",
-                            margin: "3px 0 0 0",
-                          }}
-                        >
-                          {userEmail}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Tab Navigation */}
-                    <div
-                      style={{
-                        display: "flex",
-                        marginBottom: "15px",
-                        borderBottom: `1px solid ${colors.secondary}`,
-                      }}
-                    >
-                      <button
-                        onClick={() => setActiveTab("subscribe")}
-                        style={{
-                          padding: "8px 16px",
-                          backgroundColor:
-                            activeTab === "subscribe"
-                              ? colors.accentBlue
-                              : "transparent",
-                          color:
-                            activeTab === "subscribe"
-                              ? "#fff"
-                              : colors.textDark,
-                          border: "none",
-                          borderBottom:
-                            activeTab === "subscribe"
-                              ? `2px solid ${colors.accentBlue}`
-                              : "none",
-                          borderTopLeftRadius: "5px",
-                          borderTopRightRadius: "5px",
-                          cursor: "pointer",
-                          fontWeight:
-                            activeTab === "subscribe" ? "600" : "normal",
-                          fontSize: "0.85rem",
-                          marginRight: "5px",
-                          marginBottom: "-1px",
-                          transition: "all 0.2s ease",
-                        }}
-                      >
-                        Subscribe
-                      </button>
-                      <button
-                        onClick={() => setActiveTab("manage")}
-                        style={{
-                          padding: "8px 16px",
-                          backgroundColor:
-                            activeTab === "manage"
-                              ? colors.accentBlue
-                              : "transparent",
-                          color:
-                            activeTab === "manage" ? "#fff" : colors.textDark,
-                          border: "none",
-                          borderBottom:
-                            activeTab === "manage"
-                              ? `2px solid ${colors.accentBlue}`
-                              : "none",
-                          borderTopLeftRadius: "5px",
-                          borderTopRightRadius: "5px",
-                          cursor: "pointer",
-                          fontWeight: activeTab === "manage" ? "600" : "normal",
-                          fontSize: "0.85rem",
-                          marginBottom: "-1px",
-                          transition: "all 0.2s ease",
-                        }}
-                      >
-                        Manage Subscriptions
-                      </button>
-                    </div>
-
-                    {fetchError ? (
-                      <div
-                        style={{
-                          padding: "10px",
-                          backgroundColor: "#ffebee",
-                          borderRadius: "4px",
-                          color: colors.accentRed,
-                          marginBottom: "10px",
-                        }}
-                      >
-                        {fetchError}
-                      </div>
-                    ) : (
-                      <>
-                        {/* Subscribe Tab */}
-                        {activeTab === "subscribe" && (
-                          <form onSubmit={handleSubscribe}>
-                            {/* Topic Selection */}
-                            <div style={{ marginBottom: "15px" }}>
-                              <label
-                                htmlFor="sns-topic"
-                                style={{
-                                  display: "block",
-                                  fontSize: "0.85rem",
-                                  marginBottom: "5px",
-                                  color: colors.textLight,
-                                }}
-                              >
-                                Select notification topic:
-                              </label>
-                              {isLoadingTopics ? (
-                                <div
-                                  style={{
-                                    fontSize: "0.85rem",
-                                    color: colors.textLight,
-                                    padding: "8px 0",
-                                  }}
-                                >
-                                  Loading available topics...
-                                </div>
-                              ) : availableTopics.length === 0 ? (
-                                <div
-                                  style={{
-                                    fontSize: "0.85rem",
-                                    color: colors.accentRed,
-                                    padding: "8px 0",
-                                  }}
-                                >
-                                  No topics available. Please check your AWS SNS
-                                  configuration.
-                                </div>
-                              ) : (
-                                <select
-                                  id="sns-topic"
-                                  value={selectedTopic}
-                                  onChange={(e) =>
-                                    setSelectedTopic(e.target.value)
-                                  }
-                                  style={{
-                                    width: "100%",
-                                    padding: "8px 10px",
-                                    marginBottom: "5px",
-                                    border: `1px solid ${colors.secondary}`,
-                                    borderRadius: "4px",
-                                    fontSize: "0.9rem",
-                                    backgroundColor: "#fff",
-                                    color: colors.textDark,
-                                  }}
-                                  disabled={isLoadingTopics}
-                                >
-                                  {availableTopics.map((topic) => (
-                                    <option key={topic.arn} value={topic.arn}>
-                                      {topic.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
-                              {selectedTopic && availableTopics.length > 0 && (
-                                <p
-                                  style={{
-                                    fontSize: "0.8rem",
-                                    margin: "5px 0",
-                                    color: colors.textLight,
-                                    fontStyle: "italic",
-                                  }}
-                                >
-                                  {
-                                    availableTopics.find(
-                                      (t) => t.arn === selectedTopic
-                                    )?.description
-                                  }
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Subscribe Button */}
-                            <button
-                              type="submit"
-                              disabled={
-                                isSubscribing ||
-                                isLoadingTopics ||
-                                availableTopics.length === 0
-                              }
+                    {/* Subscribe Tab */}
+                    {activeTab === "subscribe" && (
+                      <form onSubmit={handleSubscribe}>
+                        {/* Topic Selection */}
+                        <div style={{ marginBottom: "15px" }}>
+                          <label
+                            htmlFor="sns-topic"
+                            style={{
+                              display: "block",
+                              fontSize: "0.85rem",
+                              marginBottom: "5px",
+                              color: colors.textLight,
+                            }}
+                          >
+                            Select notification topic:
+                          </label>
+                          {isLoadingTopics ? (
+                            <div
                               style={{
-                                backgroundColor: colors.accentBlue,
-                                color: "white",
-                                border: "none",
-                                padding: "8px 15px",
-                                borderRadius: "4px",
-                                cursor:
-                                  isSubscribing ||
-                                  isLoadingTopics ||
-                                  availableTopics.length === 0
-                                    ? "default"
-                                    : "pointer",
-                                width: "100%",
-                                opacity:
-                                  isSubscribing ||
-                                  isLoadingTopics ||
-                                  availableTopics.length === 0
-                                    ? 0.7
-                                    : 1,
+                                fontSize: "0.85rem",
+                                color: colors.textLight,
+                                padding: "8px 0",
                               }}
                             >
-                              {isSubscribing
-                                ? "Subscribing..."
-                                : `Subscribe ${userEmail} to Notifications`}
-                            </button>
-                          </form>
-                        )}
+                              Loading available topics...
+                            </div>
+                          ) : availableTopics.length === 0 ? (
+                            <div
+                              style={{
+                                fontSize: "0.85rem",
+                                color: colors.accentRed,
+                                padding: "8px 0",
+                              }}
+                            >
+                              No topics available. Please check your AWS SNS
+                              configuration.
+                            </div>
+                          ) : (
+                            <select
+                              id="sns-topic"
+                              value={selectedTopic}
+                              onChange={(e) =>
+                                setSelectedTopic(e.target.value)
+                              }
+                              style={{
+                                width: "100%",
+                                padding: "8px 10px",
+                                marginBottom: "5px",
+                                border: `1px solid ${colors.secondary}`,
+                                borderRadius: "4px",
+                                fontSize: "0.9rem",
+                                backgroundColor: "#fff",
+                                color: colors.textDark,
+                              }}
+                              disabled={isLoadingTopics}
+                            >
+                              {availableTopics.map((topic) => (
+                                <option key={topic.arn} value={topic.arn}>
+                                  {topic.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {selectedTopic && availableTopics.length > 0 && (
+                            <p
+                              style={{
+                                fontSize: "0.8rem",
+                                margin: "5px 0",
+                                color: colors.textLight,
+                                fontStyle: "italic",
+                              }}
+                            >
+                              {
+                                availableTopics.find(
+                                  (t) => t.arn === selectedTopic
+                                )?.description
+                              }
+                            </p>
+                          )}
+                        </div>
 
-                        {/* Manage Subscriptions Tab */}
-                        {activeTab === "manage" && (
-                          <div>
-                            {isLoadingSubscriptions ? (
-                              <div
-                                style={{
-                                  textAlign: "center",
-                                  padding: "15px",
-                                  color: colors.textLight,
-                                }}
-                              >
-                                Loading your subscriptions...
-                              </div>
-                            ) : userSubscriptions.length === 0 ? (
-                              <div
-                                style={{
-                                  textAlign: "center",
-                                  padding: "15px",
-                                  color: colors.textLight,
-                                  backgroundColor: "rgba(0,0,0,0.05)",
-                                  borderRadius: "4px",
-                                }}
-                              >
-                                You don't have any active SNS subscriptions.
-                                Switch to the Subscribe tab to add one.
-                              </div>
-                            ) : (
-                              <div>
-                                <p
-                                  style={{
-                                    marginBottom: "10px",
-                                    fontSize: "0.85rem",
-                                    color: colors.textLight,
-                                  }}
-                                >
-                                  Your current subscriptions:
-                                </p>
-                                <div
-                                  style={{
-                                    maxHeight: "250px",
-                                    overflowY: "auto",
-                                  }}
-                                >
-                                  {userSubscriptions.map((sub, index) => (
-                                    <div
-                                      key={index}
-                                      style={{
-                                        padding: "10px",
-                                        borderBottom:
-                                          index < userSubscriptions.length - 1
-                                            ? `1px solid ${colors.secondary}`
-                                            : "none",
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                      }}
-                                    >
-                                      <div>
-                                        <p
-                                          style={{
-                                            fontSize: "0.9rem",
-                                            fontWeight: "500",
-                                            color: colors.textDark,
-                                          }}
-                                        >
-                                          {sub.topicName}
-                                        </p>
-                                        <p
-                                          style={{
-                                            fontSize: "0.8rem",
-                                            color:
-                                              sub.status === "Confirmed"
-                                                ? colors.accentGreen
-                                                : colors.highlight,
-                                            fontStyle: "italic",
-                                            marginTop: "3px",
-                                          }}
-                                        >
-                                          Status: {sub.status}
-                                        </p>
-                                      </div>
-                                      <button
-                                        onClick={() =>
-                                          handleUnsubscribe(sub.subscriptionArn)
-                                        }
-                                        disabled={
-                                          isUnsubscribing ||
-                                          sub.status === "Pending Confirmation"
-                                        }
-                                        style={{
-                                          backgroundColor:
-                                            sub.status ===
-                                            "Pending Confirmation"
-                                              ? colors.secondary
-                                              : colors.accentRed,
-                                          color: "white",
-                                          border: "none",
-                                          padding: "6px 12px",
-                                          borderRadius: "4px",
-                                          cursor:
-                                            sub.status ===
-                                              "Pending Confirmation" ||
-                                            isUnsubscribing
-                                              ? "default"
-                                              : "pointer",
-                                          opacity:
-                                            sub.status ===
-                                              "Pending Confirmation" ||
-                                            isUnsubscribing
-                                              ? 0.6
-                                              : 1,
-                                          fontSize: "0.8rem",
-                                        }}
-                                      >
-                                        {sub.status === "Pending Confirmation"
-                                          ? "Pending"
-                                          : "Unsubscribe"}
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                                <div
-                                  style={{
-                                    marginTop: "10px",
-                                    display: "flex",
-                                    justifyContent: "flex-end",
-                                  }}
-                                >
-                                  <button
-                                    onClick={fetchSubscriptions}
-                                    style={{
-                                      backgroundColor: "transparent",
-                                      color: colors.accentBlue,
-                                      border: "none",
-                                      padding: "5px 10px",
-                                      borderRadius: "4px",
-                                      cursor: "pointer",
-                                      fontSize: "0.8rem",
-                                      display: "flex",
-                                      alignItems: "center",
-                                    }}
-                                  >
-                                    <span style={{ marginRight: "5px" }}>
-                                      ↻
-                                    </span>{" "}
-                                    Refresh
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
+                        {/* Subscribe Button */}
+                        <button
+                          type="submit"
+                          disabled={
+                            isSubscribing ||
+                            isLoadingTopics ||
+                            availableTopics.length === 0
+                          }
+                          style={{
+                            backgroundColor: colors.accentBlue,
+                            color: "white",
+                            border: "none",
+                            padding: "8px 15px",
+                            borderRadius: "4px",
+                            cursor:
+                              isSubscribing ||
+                              isLoadingTopics ||
+                              availableTopics.length === 0
+                                ? "default"
+                                : "pointer",
+                            width: "100%",
+                            opacity:
+                              isSubscribing ||
+                              isLoadingTopics ||
+                              availableTopics.length === 0
+                                ? 0.7
+                                : 1,
+                          }}
+                        >
+                          {isSubscribing
+                            ? "Subscribing..."
+                            : `Subscribe ${userEmail} to Notifications`}
+                        </button>
+                      </form>
                     )}
 
-                    {/* Status Message - shows in both tabs */}
-                    {subscriptionStatus && (
-                      <div
-                        style={{
-                          fontSize: "0.85rem",
-                          marginTop: "12px",
-                          padding: "8px",
-                          backgroundColor: subscriptionStatus.includes(
-                            "Successfully"
-                          )
-                            ? "rgba(76, 175, 80, 0.1)"
-                            : "rgba(244, 67, 54, 0.1)",
-                          color: subscriptionStatus.includes("Successfully")
-                            ? colors.accentGreen
-                            : colors.accentRed,
-                          borderRadius: "4px",
-                          borderLeft: `3px solid ${
-                            subscriptionStatus.includes("Successfully")
-                              ? colors.accentGreen
-                              : colors.accentRed
-                          }`,
-                        }}
-                      >
-                        {subscriptionStatus}
+                    {/* Manage Subscriptions Tab */}
+                    {activeTab === "manage" && (
+                      <div>
+                        {isLoadingSubscriptions ? (
+                          <div
+                            style={{
+                              textAlign: "center",
+                              padding: "15px",
+                              color: colors.textLight,
+                            }}
+                          >
+                            Loading your subscriptions...
+                          </div>
+                        ) : userSubscriptions.length === 0 ? (
+                          <div
+                            style={{
+                              textAlign: "center",
+                              padding: "15px",
+                              color: colors.textLight,
+                              backgroundColor: "rgba(0,0,0,0.05)",
+                              borderRadius: "4px",
+                            }}
+                          >
+                            You don't have any active SNS subscriptions.
+                            Switch to the Subscribe tab to add one.
+                          </div>
+                        ) : (
+                          <div>
+                            <p
+                              style={{
+                                marginBottom: "10px",
+                                fontSize: "0.85rem",
+                                color: colors.textLight,
+                              }}
+                            >
+                              Your current subscriptions:
+                            </p>
+                            <div
+                              style={{
+                                maxHeight: "250px",
+                                overflowY: "auto",
+                              }}
+                            >
+                              {userSubscriptions.map((sub, index) => (
+                                <div
+                                  key={index}
+                                  style={{
+                                    padding: "10px",
+                                    borderBottom:
+                                      index < userSubscriptions.length - 1
+                                        ? `1px solid ${colors.secondary}`
+                                        : "none",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <div>
+                                    <p
+                                      style={{
+                                        fontSize: "0.9rem",
+                                        fontWeight: "500",
+                                        color: colors.textDark,
+                                      }}
+                                    >
+                                      {sub.topicName}
+                                    </p>
+                                    <p
+                                      style={{
+                                        fontSize: "0.8rem",
+                                        color:
+                                          sub.status === "Confirmed"
+                                            ? colors.accentGreen
+                                            : colors.highlight,
+                                        fontStyle: "italic",
+                                        marginTop: "3px",
+                                      }}
+                                    >
+                                      Status: {sub.status}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() =>
+                                      handleUnsubscribe(sub.subscriptionArn)
+                                    }
+                                    disabled={
+                                      isUnsubscribing ||
+                                      sub.status === "Pending Confirmation"
+                                    }
+                                    style={{
+                                      backgroundColor:
+                                        sub.status ===
+                                        "Pending Confirmation"
+                                          ? colors.secondary
+                                          : colors.accentRed,
+                                      color: "white",
+                                      border: "none",
+                                      padding: "6px 12px",
+                                      borderRadius: "4px",
+                                      cursor:
+                                        sub.status ===
+                                          "Pending Confirmation" ||
+                                        isUnsubscribing
+                                          ? "default"
+                                          : "pointer",
+                                      opacity:
+                                        sub.status ===
+                                          "Pending Confirmation" ||
+                                        isUnsubscribing
+                                          ? 0.6
+                                          : 1,
+                                      fontSize: "0.8rem",
+                                    }}
+                                  >
+                                    {sub.status === "Pending Confirmation"
+                                      ? "Pending"
+                                      : "Unsubscribe"}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                            <div
+                              style={{
+                                marginTop: "10px",
+                                display: "flex",
+                                justifyContent: "flex-end",
+                              }}
+                            >
+                              <button
+                                onClick={fetchSubscriptions}
+                                style={{
+                                  backgroundColor: "transparent",
+                                  color: colors.accentBlue,
+                                  border: "none",
+                                  padding: "5px 10px",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  fontSize: "0.8rem",
+                                  display: "flex",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <span style={{ marginRight: "5px" }}>
+                                  ↻
+                                </span>{" "}
+                                Refresh
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </>
                 )}
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <div
-          style={{
-            backgroundColor: colors.background,
-            padding: "20px",
-            borderRadius: "10px",
-          }}
-        >
-          <h2
-            style={{
-              fontSize: "1.2rem",
-              fontWeight: "600",
-              marginBottom: "15px",
-              color: colors.textDark,
-            }}
-          >
-            Diagnostic Tools
-          </h2>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "20px" }}>
-            <div
-              style={{
-                flex: "1 1 300px",
-                backgroundColor: "#fff",
-                padding: "20px",
-                borderRadius: "8px",
-                boxShadow: "0px 2px 6px rgba(0,0,0,0.05)",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: "1rem",
-                  marginBottom: "10px",
-                  color: colors.textDark,
-                }}
-              >
-                Run Diagnostics
-              </h3>
-              <div style={{ marginBottom: "15px" }}>
-                <select
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    border: `1px solid ${colors.secondary}`,
-                    borderRadius: "5px",
-                    color: colors.textDark,
-                  }}
-                >
-                  <option>Full System Check</option>
-                  <option>Battery Health Test</option>
-                  <option>Cell Balancing Test</option>
-                  <option>Temperature Sensor Check</option>
-                  <option>Voltage Calibration</option>
-                </select>
-              </div>
-              <button
-                style={{
-                  backgroundColor: colors.accentBlue,
-                  color: "white",
-                  border: "none",
-                  padding: "10px 15px",
-                  borderRadius: "5px",
-                  cursor: "pointer",
-                  width: "100%",
-                }}
-              >
-                Start Diagnostic
-              </button>
-            </div>
-
-            <div
-              style={{
-                flex: "1 1 300px",
-                backgroundColor: "#fff",
-                padding: "20px",
-                borderRadius: "8px",
-                boxShadow: "0px 2px 6px rgba(0,0,0,0.05)",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: "1rem",
-                  marginBottom: "10px",
-                  color: colors.textDark,
-                }}
-              >
-                Export Logs
-              </h3>
-              <p style={{ marginBottom: "15px", color: colors.textLight }}>
-                Download system logs for advanced troubleshooting and analysis.
-              </p>
-              <div style={{ display: "flex", gap: "10px" }}>
-                <button
-                  style={{
-                    backgroundColor: colors.accentGreen,
-                    color: "white",
-                    border: "none",
-                    padding: "10px 15px",
-                    borderRadius: "5px",
-                    cursor: "pointer",
-                    flex: 1,
-                  }}
-                >
-                  System Logs
-                </button>
-                <button
-                  style={{
-                    backgroundColor: colors.highlight,
-                    color: "white",
-                    border: "none",
-                    padding: "10px 15px",
-                    borderRadius: "5px",
-                    cursor: "pointer",
-                    flex: 1,
-                  }}
-                >
-                  Error Logs
-                </button>
-              </div>
-            </div>
+                {/* Status Message - shows in both tabs */}
+                {subscriptionStatus && (
+                  <div
+                    style={{
+                      fontSize: "0.85rem",
+                      marginTop: "12px",
+                      padding: "8px",
+                      backgroundColor: subscriptionStatus.includes(
+                        "Successfully"
+                      )
+                        ? "rgba(76, 175, 80, 0.1)"
+                        : "rgba(244, 67, 54, 0.1)",
+                      color: subscriptionStatus.includes("Successfully")
+                        ? colors.accentGreen
+                        : colors.accentRed,
+                      borderRadius: "4px",
+                      borderLeft: `3px solid ${
+                        subscriptionStatus.includes("Successfully")
+                          ? colors.accentGreen
+                          : colors.accentRed
+                      }`,
+                    }}
+                  >
+                    {subscriptionStatus}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>

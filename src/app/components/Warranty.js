@@ -205,10 +205,10 @@ const Warranty = ({ bmsData }) => {
               }}
             >
               <div style={{ fontSize: "0.9rem", color: "#666" }}>
-                Remaining Cycles
+                Manufacturer
               </div>
               <div style={{ fontSize: "1.1rem", fontWeight: "600" }}>
-                {warrantyInfo.remainingCycles}
+                {"Vaulta Systems"}
               </div>
             </div>
           </div>

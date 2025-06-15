@@ -12,6 +12,7 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 
 const colors = {
@@ -70,7 +71,7 @@ const DataViewer = ({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          height: "800vh",
+          height: "80vh",
           padding: "20px",
           backgroundColor: colors.background,
           borderRadius: "8px",
@@ -120,6 +121,16 @@ const DataViewer = ({
     );
   }
 
+  // Helper function to safely extract value (handles both direct values and DynamoDB format)
+  const safeExtractValue = (value) => {
+    if (value === null || value === undefined) return null;
+    // If it's a DynamoDB format object with N, S, etc.
+    if (typeof value === 'object' && value.N) return value.N;
+    if (typeof value === 'object' && value.S) return value.S;
+    // Otherwise return the value directly
+    return value;
+  };
+  console.log("Structure:", data);
   // Ensure data structure exists with fallbacks
   const safeData = {
     Node0: data.Node0 || { voltage: { cellVoltages: [] }, temperature: {} },
@@ -195,37 +206,91 @@ const DataViewer = ({
     { name: "Total Current", value: safeData.Pack.totalCurrent || 0 },
   ];
 
+  // Debug: Log the data structure to console
+  console.log("Full data structure:", data);
+  console.log("Cell data:", safeData.Cell);
+  console.log("Temperature data:", safeData.Temperature);
+
+  // Try multiple possible property names and locations
+  const maxCellVoltageCell = 
+    safeExtractValue(data.MaximumCellVoltageCellNo) ||
+    safeExtractValue(safeData.Cell.MaximumCellVoltageCellNo) ||
+    safeExtractValue(safeData.Cell.maxCellVoltageCellNo) ||
+    safeExtractValue(safeData.Cell.cellNo) ||
+    safeExtractValue(safeData.Cell.maxCellNo) ||
+    'N/A';
+
+  const maxCellVoltageNode = 
+    safeExtractValue(data.MaximumCellVoltageNode) ||
+    safeExtractValue(safeData.Cell.MaximumCellVoltageNode) ||
+    safeExtractValue(safeData.Cell.maxCellVoltageNode) ||
+    safeExtractValue(safeData.Cell.node) ||
+    safeExtractValue(safeData.Cell.maxNode) ||
+    'N/A';
+
+  const minCellVoltageCell = 
+    safeExtractValue(data.MinimumCellVoltageCellNo) ||
+    safeExtractValue(safeData.Cell.MinimumCellVoltageCellNo) ||
+    safeExtractValue(safeData.Cell.minCellVoltageCellNo) ||
+    safeExtractValue(safeData.Cell.minCellNo) ||
+    'N/A';
+
+  const minCellVoltageNode = 
+    safeExtractValue(data.MinimumCellVoltageNode) ||
+    safeExtractValue(safeData.Cell.MinimumCellVoltageNode) ||
+    safeExtractValue(safeData.Cell.minCellVoltageNode) ||
+    safeExtractValue(safeData.Cell.minNode) ||
+    'N/A';
+
   const cellData = [
-    { name: "Max Cell Voltage", value: safeData.Cell.maxCellVoltage || 0 },
-    { name: "Min Cell Voltage", value: safeData.Cell.minCellVoltage || 0 },
-    {
-      name: "Threshold Over Voltage",
-      value: safeData.Cell.thresholdOverVoltage || 0,
+    { 
+      name: `Max Cell Voltage\n(Cell ${maxCellVoltageCell})`, 
+      value: safeData.Cell.maxCellVoltage || 0,
+      cellNumber: maxCellVoltageCell,
+      node: maxCellVoltageNode
     },
-    {
-      name: "Threshold Under Voltage",
-      value: safeData.Cell.thresholdUnderVoltage || 0,
+    { 
+      name: `Min Cell Voltage\n(Cell ${minCellVoltageCell})`, 
+      value: safeData.Cell.minCellVoltage || 0,
+      cellNumber: minCellVoltageCell,
+      node: minCellVoltageNode
     },
   ];
 
+  // Try multiple possible property names for temperature nodes
+  const maxCellTempNode = 
+    safeExtractValue(data.Temperature.maxCellTempNode);
+  const minCellTempNode = 
+    safeExtractValue(data.Temperature.minCellTempNode);
+
   const temperatureData = [
-    { name: "Max Cell Temp", value: safeData.Temperature.maxCellTemp || 0 },
-    { name: "Min Cell Temp", value: safeData.Temperature.minCellTemp || 0 },
-    {
-      name: "Threshold Over Temp",
-      value: safeData.Temperature.thresholdOverTemp || 0,
+    { 
+      name: `Max Cell Temp\n(Node ${maxCellTempNode})`, 
+      value: safeData.Temperature.maxCellTemp || 0,
+      node: maxCellTempNode
     },
-    {
-      name: "Threshold Under Temp",
-      value: safeData.Temperature.thresholdUnderTemp || 0,
+    { 
+      name: `Min Cell Temp\n(Node ${minCellTempNode})`, 
+      value: safeData.Temperature.minCellTemp || 0,
+      node: minCellTempNode
     },
   ];
+
+  // Extract threshold values for reference lines
+  const cellThresholds = {
+    over: safeData.Cell.thresholdOverVoltage || 0,
+    under: safeData.Cell.thresholdUnderVoltage || 0,
+  };
+
+  const temperatureThresholds = {
+    over: safeData.Temperature.thresholdOverTemp || 0,
+    under: safeData.Temperature.thresholdUnderTemp || 0,
+  };
 
   const socData = [
     { name: "SOC Percent", value: safeData.SOC.socPercent || 0 },
-    { name: "SOC Ah", value: safeData.SOC.socAh || 0 },
+    
     { name: "Balance SOC Percent", value: safeData.SOC.balanceSOCPercent || 0 },
-    { name: "Balance SOC Ah", value: safeData.SOC.balanceSOCAh || 0 },
   ];
 
   const gridContainerStyle = {
@@ -445,7 +510,7 @@ const DataViewer = ({
           </div>
         </div>
 
-        {/* div4 - Cell Data */}
+        {/* div4 - Cell Data with Reference Lines */}
         <div
           className="div4"
           style={{
@@ -488,17 +553,48 @@ const DataViewer = ({
                 <YAxis
                   stroke={colors.textLight}
                   fontSize="clamp(6px, 1.2vw, 10px)"
+                  domain={[
+                    Math.min(cellThresholds.under * 0.9, cellThresholds.under - 0.5),
+                    Math.max(cellThresholds.over * 1.1, cellThresholds.over + 0.5)
+                  ]}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: colors.backgroundSolid,
-                    border: `1px solid ${colors.secondary}`,
-                    borderRadius: "6px",
-                    color: colors.textDark,
-                    fontSize: "clamp(8px, 1.5vw, 12px)",
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div style={{
+                          backgroundColor: colors.backgroundSolid,
+                          border: `1px solid ${colors.secondary}`,
+                          borderRadius: "6px",
+                          padding: "8px",
+                          color: colors.textDark,
+                          fontSize: "clamp(8px, 1.5vw, 12px)",
+                        }}>
+                          <p style={{ margin: "0 0 4px 0", fontWeight: "bold" }}>{label}</p>
+                          <p style={{ margin: "0 0 2px 0" }}>{`Value: ${payload[0].value}V`}</p>
+                          {data.cellNumber && data.cellNumber !== 'N/A' && <p style={{ margin: "0 0 2px 0" }}>{`Cell Number: ${data.cellNumber}`}</p>}
+                          {data.node && data.node !== 'N/A' && <p style={{ margin: "0" }}>{`Node: ${data.node}`}</p>}
+                        </div>
+                      );
+                    }
+                    return null;
                   }}
                 />
                 <Bar dataKey="value" fill={colors.primary} />
+                {/* Reference Lines for Thresholds */}
+                <ReferenceLine 
+                  y={cellThresholds.over} 
+                  stroke="#ff0000" 
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
+                <ReferenceLine 
+                  y={cellThresholds.under} 
+                  stroke="#ff0000" 
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -513,56 +609,245 @@ const DataViewer = ({
             gridRow: "span 2 / span 2",
             gridColumnStart: 1,
             gridRowStart: 4,
-            minWidth: "180px", // MINIMUM SIZE CONTROL - Change this value
-            minHeight: "160px", // MINIMUM SIZE CONTROL - Change this value
+            minWidth: "180px",
+            minHeight: "160px",
+            background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.06)",
+            border: `1px solid ${colors.secondary}40`,
           }}
         >
           <h3
             className="responsive-text-md"
             style={{
-              fontWeight: "600",
+              fontWeight: "700",
               color: colors.textDark,
-              margin: "0 0 clamp(4px, 1vw, 10px) 0",
+              margin: "0 0 clamp(6px, 1.5vw, 12px) 0",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+              fontSize: "clamp(0.7rem, 1.4vw, 0.95rem)"
             }}
           >
             Pack Data
           </h3>
-          <div style={{ flex: 1, minHeight: "100px" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={packData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius="clamp(25px, 8vw, 50px)"
-                  fill={colors.primary}
-                  label={(entry) => `${entry.value}`}
-                  labelStyle={{ fontSize: "clamp(6px, 1.2vw, 10px)" }}
-                >
-                  {packData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={colors.primary} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: colors.backgroundSolid,
-                    border: `1px solid ${colors.secondary}`,
-                    borderRadius: "6px",
-                    color: colors.textDark,
-                    fontSize: "clamp(8px, 1.5vw, 12px)",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+          <div style={{ 
+            flex: 1, 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "clamp(4px, 1vw, 10px)",
+            minHeight: "100px" 
+          }}>
+            {/* Total Battery Voltage KPI Card */}
+            <div style={{
+              background: "linear-gradient(135deg, #f8fffe 0%, #f0fffe 100%)",
+              border: `1px solid ${colors.atlantis}20`,
+              borderLeft: `4px solid ${colors.atlantis}`,
+              borderRadius: "8px",
+              padding: "clamp(6px, 1.2vw, 12px)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flex: 1,
+              minHeight: "38px",
+              boxShadow: "0 2px 8px rgba(135, 200, 66, 0.08)",
+              transition: "all 0.2s ease",
+              cursor: "pointer"
+            }}>
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                flex: 1
+              }}>
+                <div style={{
+                  fontSize: "clamp(0.55rem, 1.1vw, 0.75rem)",
+                  color: colors.textLight,
+                  fontWeight: "600",
+                  lineHeight: 1,
+                  marginBottom: "3px",
+                  letterSpacing: "0.3px",
+                  textTransform: "uppercase"
+                }}>
+                  Battery Voltage
+                </div>
+                <div style={{
+                  fontSize: "clamp(0.9rem, 2vw, 1.3rem)",
+                  color: colors.textDark,
+                  fontWeight: "800",
+                  lineHeight: 1,
+                  fontFamily: "monospace",
+                  textShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                }}>
+                  {(safeData.Pack.totalBattVoltage || 0).toFixed(1)}V
+                </div>
+              </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}>
+                <div style={{
+                  fontSize: "clamp(0.5rem, 1vw, 0.65rem)",
+                  color: colors.atlantis,
+                  fontWeight: "700",
+                  background: `${colors.atlantis}15`,
+                  padding: "2px 6px",
+                  borderRadius: "12px",
+                  border: `1px solid ${colors.atlantis}30`,
+                  textShadow: "none"
+                }}>
+                  ACTIVE
+                </div>
+              </div>
+            </div>
+
+            {/* Total Load Voltage KPI Card */}
+            <div style={{
+              background: "linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%)",
+              border: `1px solid ${colors.primary}20`,
+              borderLeft: `4px solid ${colors.primary}`,
+              borderRadius: "8px",
+              padding: "clamp(6px, 1.2vw, 12px)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flex: 1,
+              minHeight: "38px",
+              boxShadow: "0 2px 8px rgba(99, 99, 98, 0.08)",
+              transition: "all 0.2s ease",
+              cursor: "pointer"
+            }}>
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                flex: 1
+              }}>
+                <div style={{
+                  fontSize: "clamp(0.55rem, 1.1vw, 0.75rem)",
+                  color: colors.textLight,
+                  fontWeight: "600",
+                  lineHeight: 1,
+                  marginBottom: "3px",
+                  letterSpacing: "0.3px",
+                  textTransform: "uppercase"
+                }}>
+                  Load Voltage
+                </div>
+                <div style={{
+                  fontSize: "clamp(0.9rem, 2vw, 1.3rem)",
+                  color: colors.textDark,
+                  fontWeight: "800",
+                  lineHeight: 1,
+                  fontFamily: "monospace",
+                  textShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                }}>
+                  {(safeData.Pack.totalLoadVoltage || 0).toFixed(1)}V
+                </div>
+              </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}>
+                <div style={{
+                  fontSize: "clamp(0.5rem, 1vw, 0.65rem)",
+                  color: colors.primary,
+                  fontWeight: "700",
+                  background: `${colors.primary}15`,
+                  padding: "2px 6px",
+                  borderRadius: "12px",
+                  border: `1px solid ${colors.primary}30`,
+                  textShadow: "none"
+                }}>
+                  STABLE
+                </div>
+              </div>
+            </div>
+
+            {/* Total Current KPI Card - DYNAMIC */}
+            <div style={{
+              background: (safeData.Pack.totalCurrent || 0) < 0 
+                ? "linear-gradient(135deg, #f8fffe 0%, #f0fffe 100%)" // Green background for charging (negative current)
+                : "linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%)", // Gray background for discharging (positive current)
+              border: (safeData.Pack.totalCurrent || 0) < 0 
+                ? `1px solid ${colors.atlantis}20`
+                : `1px solid ${colors.primary}20`,
+              borderLeft: (safeData.Pack.totalCurrent || 0) < 0 
+                ? `4px solid ${colors.atlantis}` // Green border for charging
+                : `4px solid ${colors.primary}`, // Gray border for discharging
+              borderRadius: "8px",
+              padding: "clamp(6px, 1.2vw, 12px)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flex: 1,
+              minHeight: "38px",
+              boxShadow: (safeData.Pack.totalCurrent || 0) < 0 
+                ? "0 2px 8px rgba(135, 200, 66, 0.08)"
+                : "0 2px 8px rgba(99, 99, 98, 0.08)",
+              transition: "all 0.2s ease",
+              cursor: "pointer"
+            }}>
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                flex: 1
+              }}>
+                <div style={{
+                  fontSize: "clamp(0.55rem, 1.1vw, 0.75rem)",
+                  color: colors.textLight,
+                  fontWeight: "600",
+                  lineHeight: 1,
+                  marginBottom: "3px",
+                  letterSpacing: "0.3px",
+                  textTransform: "uppercase"
+                }}>
+                  Total Current
+                </div>
+                <div style={{
+                  fontSize: "clamp(0.9rem, 2vw, 1.3rem)",
+                  color: colors.textDark,
+                  fontWeight: "800",
+                  lineHeight: 1,
+                  fontFamily: "monospace",
+                  textShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                }}>
+                  {(safeData.Pack.totalCurrent || 0).toFixed(2)}A
+                </div>
+              </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}>
+                <div style={{
+                  fontSize: "clamp(0.5rem, 1vw, 0.65rem)",
+                  color: (safeData.Pack.totalCurrent || 0) < 0 
+                    ? colors.atlantis 
+                    : colors.primary,
+                  fontWeight: "700",
+                  background: (safeData.Pack.totalCurrent || 0) < 0 
+                    ? `${colors.atlantis}15` 
+                    : `${colors.primary}15`,
+                  padding: "2px 6px",
+                  borderRadius: "12px",
+                  border: (safeData.Pack.totalCurrent || 0) < 0 
+                    ? `1px solid ${colors.atlantis}30`
+                    : `1px solid ${colors.primary}30`,
+                  textShadow: "none"
+                }}>
+                  {(safeData.Pack.totalCurrent || 0) < 0 ? "CHARGING" : "DISCHARGING"}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* div6 - Temperature Data */}
+        {/* div6 - Temperature Data with Reference Lines */}
         <div
           className="div6"
           style={{
@@ -599,30 +884,62 @@ const DataViewer = ({
                   dataKey="name"
                   stroke={colors.textLight}
                   fontSize="clamp(6px, 1.2vw, 10px)"
-                  angle={-45}
-                  textAnchor="end"
+                  angle={0}
+                  textAnchor="middle"
                   interval={0}
+                  height={40}
                 />
                 <YAxis
                   stroke={colors.textLight}
                   fontSize="clamp(6px, 1.2vw, 10px)"
+                  domain={[
+                    Math.min(temperatureThresholds.under * 0.9, temperatureThresholds.under - 5),
+                    Math.max(temperatureThresholds.over * 1.1, temperatureThresholds.over + 5)
+                  ]}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: colors.backgroundSolid,
-                    border: `1px solid ${colors.secondary}`,
-                    borderRadius: "6px",
-                    color: colors.textDark,
-                    fontSize: "clamp(8px, 1.5vw, 12px)",
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div style={{
+                          backgroundColor: colors.backgroundSolid,
+                          border: `1px solid ${colors.secondary}`,
+                          borderRadius: "6px",
+                          padding: "8px",
+                          color: colors.textDark,
+                          fontSize: "clamp(8px, 1.5vw, 12px)",
+                        }}>
+                          <p style={{ margin: "0 0 4px 0", fontWeight: "bold" }}>{label}</p>
+                          <p style={{ margin: "0 0 2px 0" }}>{`Value: ${payload[0].value}°C`}</p>
+                          {data.node && data.node !== 'N/A' && <p style={{ margin: "0" }}>{`Node: ${data.node}`}</p>}
+                        </div>
+                      );
+                    }
+                    return null;
                   }}
                 />
                 <Bar dataKey="value" fill={colors.primary} />
+                {/* Reference Lines for Temperature Thresholds */}
+                <ReferenceLine 
+                  y={temperatureThresholds.over} 
+                  stroke="#ff0000" 
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
+                <ReferenceLine 
+                  y={temperatureThresholds.under} 
+                  stroke="#ff0000" 
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* div7 - SOC Data */}
+{/* div7 - SOC Data */}
+{/* div7 - SOC Data */}
         <div
           className="div7"
           style={{
@@ -631,52 +948,183 @@ const DataViewer = ({
             gridRow: "span 2 / span 2",
             gridColumnStart: 3,
             gridRowStart: 4,
-            minWidth: "180px", // MINIMUM SIZE CONTROL - Change this value
-            minHeight: "160px", // MINIMUM SIZE CONTROL - Change this value
+            minWidth: "180px",
+            minHeight: "160px",
+            background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.06)",
+            border: `1px solid ${colors.secondary}40`,
           }}
         >
           <h3
             className="responsive-text-md"
             style={{
-              fontWeight: "600",
+              fontWeight: "700",
               color: colors.textDark,
-              margin: "0 0 clamp(4px, 1vw, 10px) 0",
+              margin: "0 0 clamp(6px, 1.5vw, 12px) 0",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+              fontSize: "clamp(0.7rem, 1.4vw, 0.95rem)"
             }}
           >
             SOC Data
           </h3>
-          <div style={{ flex: 1, minHeight: "100px" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={socData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius="clamp(25px, 8vw, 50px)"
-                  fill={colors.stormDust}
-                  label={(entry) => `${entry.value}`}
-                  labelStyle={{ fontSize: "clamp(6px, 1.2vw, 10px)" }}
-                >
-                  {socData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={colors.stormDust} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: colors.backgroundSolid,
-                    border: `1px solid ${colors.secondary}`,
-                    borderRadius: "6px",
-                    color: colors.textDark,
-                    fontSize: "clamp(8px, 1.5vw, 12px)",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+          <div style={{ 
+            flex: 1, 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: "clamp(8px, 1.5vw, 16px)", // Larger gap since only 2 items
+            minHeight: "100px" 
+          }}>
+            {/* SOC Percent KPI Card */}
+            <div style={{
+              background: (safeData.SOC.socPercent || 0) > 80 
+                ? "linear-gradient(135deg, #f8fffe 0%, #f0fffe 100%)" // Green background for charged
+                : (safeData.SOC.socPercent || 0) < 20 
+                  ? "linear-gradient(135deg, #fdfcfc 0%, #f8f8f8 100%)" // Gray background for low
+                  : "linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%)", // Light gray for normal
+              border: (safeData.SOC.socPercent || 0) > 80 
+                ? `1px solid ${colors.atlantis}20`
+                : `1px solid ${colors.primary}20`,
+              borderLeft: (safeData.SOC.socPercent || 0) > 80 
+                ? `4px solid ${colors.atlantis}` // Green border for charged
+                : `4px solid ${colors.primary}`, // Gray border for normal/low
+              borderRadius: "8px",
+              padding: "clamp(8px, 1.5vw, 16px)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flex: 1,
+              minHeight: "50px",
+              boxShadow: (safeData.SOC.socPercent || 0) > 80 
+                ? "0 2px 8px rgba(135, 200, 66, 0.08)"
+                : "0 2px 8px rgba(99, 99, 98, 0.08)",
+              transition: "all 0.2s ease",
+              cursor: "pointer"
+            }}>
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                flex: 1
+              }}>
+                <div style={{
+                  fontSize: "clamp(0.55rem, 1.1vw, 0.75rem)",
+                  color: colors.textLight,
+                  fontWeight: "600",
+                  lineHeight: 1,
+                  marginBottom: "3px",
+                  letterSpacing: "0.3px",
+                  textTransform: "uppercase"
+                }}>
+                  SOC Percent
+                </div>
+                <div style={{
+                  fontSize: "clamp(1rem, 2.2vw, 1.4rem)",
+                  color: colors.textDark,
+                  fontWeight: "800",
+                  lineHeight: 1,
+                  fontFamily: "monospace",
+                  textShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                }}>
+                  {(safeData.SOC.socPercent || 0).toFixed(1)}%
+                </div>
+              </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}>
+                <div style={{
+                  fontSize: "clamp(0.5rem, 1vw, 0.65rem)",
+                  color: (safeData.SOC.socPercent || 0) > 80 
+                    ? colors.atlantis 
+                    : colors.primary,
+                  fontWeight: "700",
+                  background: (safeData.SOC.socPercent || 0) > 80 
+                    ? `${colors.atlantis}15` 
+                    : `${colors.primary}15`,
+                  padding: "2px 6px",
+                  borderRadius: "12px",
+                  border: (safeData.SOC.socPercent || 0) > 80 
+                    ? `1px solid ${colors.atlantis}30`
+                    : `1px solid ${colors.primary}30`,
+                  textShadow: "none"
+                }}>
+                  {(safeData.SOC.socPercent || 0) > 80 
+                    ? "CHARGED" 
+                    : (safeData.SOC.socPercent || 0) < 20 
+                      ? "NEED CHARGING" 
+                      : "NORMAL"}
+                </div>
+              </div>
+            </div>
+
+            {/* Balance SOC Percent KPI Card */}
+            <div style={{
+              background: "linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%)", // Gray like Load Voltage
+              border: `1px solid ${colors.primary}20`,
+              borderLeft: `4px solid ${colors.primary}`, // Gray border
+              borderRadius: "8px",
+              padding: "clamp(8px, 1.5vw, 16px)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flex: 1,
+              minHeight: "50px",
+              boxShadow: "0 2px 8px rgba(99, 99, 98, 0.08)",
+              transition: "all 0.2s ease",
+              cursor: "pointer"
+            }}>
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                flex: 1
+              }}>
+                <div style={{
+                  fontSize: "clamp(0.55rem, 1.1vw, 0.75rem)",
+                  color: colors.textLight,
+                  fontWeight: "600",
+                  lineHeight: 1,
+                  marginBottom: "3px",
+                  letterSpacing: "0.3px",
+                  textTransform: "uppercase"
+                }}>
+                  Balance SOC %
+                </div>
+                <div style={{
+                  fontSize: "clamp(1rem, 2.2vw, 1.4rem)",
+                  color: colors.textDark,
+                  fontWeight: "800",
+                  lineHeight: 1,
+                  fontFamily: "monospace",
+                  textShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                }}>
+                  {(safeData.SOC.balanceSOCPercent || 0).toFixed(1)}%
+                </div>
+              </div>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px"
+              }}>
+                <div style={{
+                  fontSize: "clamp(0.5rem, 1vw, 0.65rem)",
+                  color: colors.primary,
+                  fontWeight: "700",
+                  background: `${colors.primary}15`,
+                  padding: "2px 6px",
+                  borderRadius: "12px",
+                  border: `1px solid ${colors.primary}30`,
+                  textShadow: "none"
+                }}>
+                  BALANCE
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -800,7 +1248,7 @@ const DataViewer = ({
                         dot={false}
                       />
                     ))
-                  : Array.from({ length: 14 }).map((_, index) => (
+                  : Array.from({ length: 8 }).map((_, index) => (
                       <Line
                         key={`Cell ${index + 1}`}
                         type="monotone"

@@ -18,6 +18,15 @@ const Dashboard = ({ bmsData, activeSection = "system" }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState(new Date());
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [selectedBattery, setSelectedBattery] = useState("BAT-0x400");
+
+  // Battery options for dropdown
+  const batteryOptions = [
+    { value: "BAT-0x400", label: "BAT-0x400" },
+    { value: "BAT-0x440", label: "BAT-0x440" },
+    { value: "BAT-0x480", label: "BAT-0x480" },
+    { value: "Pack-Controller", label: "Pack-Controller" }
+  ];
 
   // Refs for tracking components
   const batteryStatusRef = useRef(null);
@@ -45,8 +54,8 @@ const Dashboard = ({ bmsData, activeSection = "system" }) => {
         credentials,
       });
 
-      // Fetch only the latest reading for the battery
-      const latestReading = await getLatestReading(docClient, "BAT-0x440");
+      // Fetch only the latest reading for the selected battery
+      const latestReading = await getLatestReading(docClient, selectedBattery);
 
       if (latestReading) {
         console.log("Latest reading received:", latestReading);
@@ -82,7 +91,15 @@ const Dashboard = ({ bmsData, activeSection = "system" }) => {
         setIsInitialLoad(false);
       }
     }
-  }, [isInitialLoad]);
+  }, [isInitialLoad, selectedBattery]);
+
+  // Handle battery selection change
+  const handleBatteryChange = (event) => {
+    const newBattery = event.target.value;
+    setSelectedBattery(newBattery);
+    setIsInitialLoad(true); // Reset to show loading state
+    setBmsState(null); // Clear current data
+  };
 
   // Set initial data from props
   useEffect(() => {
@@ -105,6 +122,13 @@ const Dashboard = ({ bmsData, activeSection = "system" }) => {
       fetchLatestData();
     }
   }, [bmsData, fetchLatestData]);
+
+  // Fetch data when battery selection changes
+  useEffect(() => {
+    if (selectedBattery && isInitialLoad) {
+      fetchLatestData();
+    }
+  }, [selectedBattery, isInitialLoad, fetchLatestData]);
 
   // Set up auto-refresh interval
   useEffect(() => {
@@ -160,6 +184,7 @@ const Dashboard = ({ bmsData, activeSection = "system" }) => {
           roundValue(getDataValue(`Node00Temp${i < 10 ? `0${i}` : i}`))
         ),
         tempCount: roundValue(getDataValue("Node00TempCount")),
+        numcells: roundValue(getDataValue("Node00CellCount")),
       },
     },
     {
@@ -174,6 +199,7 @@ const Dashboard = ({ bmsData, activeSection = "system" }) => {
           roundValue(getDataValue(`Node01Temp${i < 10 ? `0${i}` : i}`))
         ),
         tempCount: roundValue(getDataValue("Node01TempCount")),
+        numcells: roundValue(getDataValue("Node01CellCount")),
       },
     },
   ];
@@ -237,6 +263,45 @@ const Dashboard = ({ bmsData, activeSection = "system" }) => {
     </button>
   );
 
+  // Battery selector dropdown component
+  const BatterySelector = () => (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <label 
+        htmlFor="battery-select" 
+        style={{ 
+          color: colors.textDark, 
+          fontWeight: "600",
+          fontSize: "0.9rem" 
+        }}
+      >
+        Battery:
+      </label>
+      <select
+        id="battery-select"
+        value={selectedBattery}
+        onChange={handleBatteryChange}
+        style={{
+          padding: "6px 12px",
+          backgroundColor: "#ffffff",
+          color: colors.textDark,
+          border: `1px solid ${colors.secondary}`,
+          borderRadius: "5px",
+          cursor: "pointer",
+          fontWeight: "500",
+          fontSize: "0.85rem",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+          minWidth: "150px",
+        }}
+      >
+        {batteryOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
   return (
     <div
       style={{
@@ -250,12 +315,38 @@ const Dashboard = ({ bmsData, activeSection = "system" }) => {
     >
       <ToastContainer />
 
+      {/* Header Bar */}
+      <div
+        style={{
+          backgroundColor: "#fff",
+          padding: "10px 20px",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderBottom: `1px solid ${colors.secondary}`,
+        }}
+      >
+        <h1
+          style={{
+            color: colors.textDark,
+            fontSize: "1.5rem",
+            fontWeight: "600",
+            margin: 0,
+          }}
+        >
+          System Overview
+        </h1>
+        <BatterySelector />
+      </div>
+
       {/* Main Content */}
       <div
         style={{
           flex: 1,
           display: "flex",
           overflow: "hidden",
+          padding: "10px",
         }}
       >
         {activeSection === "system" ? (
