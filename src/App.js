@@ -13,10 +13,10 @@ import AuthWrapper from "./AuthWrapper.js";
 import Dashboard from "./pages/dashboard/DashboardPage.js";
 import UserManagementPage from "./pages/user-management/UserManagementPage.js";
 import DataAnalyticsPage from "./pages/data-analytics/DataAnalyticsPage.js";
-import SystemSettings from "./app/components/SystemSettings.js"; // Renamed from Page4
-import EnergyMonitor from "./app/components/EnergyMonitor.js"; // Renamed from Page5
+import SystemSettings from "./app/components/SystemSettings.js";
+import EnergyMonitor from "./app/components/EnergyMonitor.js";
 import MLDashboardPage from "./pages/ml-dashboard/MLDashboardPage.js";
-import Diagnostics from "./app/components/Diagnostics.js"; // New component
+import DiagnosticsPage from "./pages/diagnostics/DiagnosticsPage.js";
 import Warranty from "./app/components/Warranty.js"; // New component
 import TopBanner from "./app/components/TopBanner.js";
 import LoadingSpinner from "./app/components/LoadingSpinner.js";
@@ -490,7 +490,7 @@ function AppWithAuth({
                   exit="exit"
                   style={{ height: "100%" }}
                 >
-                  <Diagnostics bmsData={bmsData} user={user} />
+                  <DiagnosticsPage bmsData={bmsData} user={user} />
                 </motion.div>
               }
             />
