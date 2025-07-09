@@ -1,4 +1,4 @@
-// This is your Dashboard.js moved and cleaned up
+// Updated DashboardPage.js with navigation
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -14,12 +14,17 @@ import { fetchAuthSession } from "aws-amplify/auth";
 import awsconfig from "../../aws-exports.js";
 import { getLatestReading } from "../../queries.js";
 
-const DashboardPage = ({ bmsData, activeSection = "system" }) => {
+const DashboardPage = ({
+  bmsData,
+  activeSection: initialActiveSection = "system",
+}) => {
   const [bmsState, setBmsState] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState(new Date());
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [selectedBattery, setSelectedBattery] = useState("BAT-0x400");
+  // Add state for controlling the active section
+  const [activeSection, setActiveSection] = useState(initialActiveSection);
 
   // Battery options for dropdown
   const batteryOptions = [
@@ -287,6 +292,45 @@ const DashboardPage = ({ bmsData, activeSection = "system" }) => {
     </div>
   );
 
+  // Navigation component
+  const Navigation = () => {
+    const navItems = [
+      { key: "system", label: "System Overview", icon: "📊" },
+      { key: "tables", label: "Detailed View", icon: "📋" },
+      { key: "installations", label: "Installations", icon: "🏭" },
+    ];
+
+    return (
+      <div style={{ display: "flex", gap: "5px" }}>
+        {navItems.map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setActiveSection(item.key)}
+            style={{
+              padding: "8px 16px",
+              backgroundColor:
+                activeSection === item.key ? colors.accentBlue : "#ffffff",
+              color: activeSection === item.key ? "#fff" : colors.textDark,
+              border: `1px solid ${colors.secondary}`,
+              borderRadius: "5px",
+              cursor: "pointer",
+              fontWeight: "600",
+              fontSize: "0.85rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              transition: "all 0.2s ease",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            }}
+          >
+            <span>{item.icon}</span>
+            {item.label}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (activeSection) {
       case "system":
@@ -345,16 +389,19 @@ const DashboardPage = ({ bmsData, activeSection = "system" }) => {
           borderBottom: `1px solid ${colors.secondary}`,
         }}
       >
-        <h1
-          style={{
-            color: colors.textDark,
-            fontSize: "1.5rem",
-            fontWeight: "600",
-            margin: 0,
-          }}
-        >
-          System Overview
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <h1
+            style={{
+              color: colors.textDark,
+              fontSize: "1.5rem",
+              fontWeight: "600",
+              margin: 0,
+            }}
+          >
+            System Overview
+          </h1>
+          <Navigation />
+        </div>
         <BatterySelector />
       </div>
 

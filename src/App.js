@@ -10,8 +10,8 @@ import React, { useState, useEffect } from "react";
 import { Amplify } from "aws-amplify";
 import awsconfig from "./aws-exports.js";
 import AuthWrapper from "./AuthWrapper.js";
-import Dashboard from "./app/components/Dashboard.js";
-import UserManagement from "./app/components/UserManagement.js"; // Renamed from Page2
+import Dashboard from "./pages/dashboard/DashboardPage.js";
+import UserManagementPage from "./pages/user-management/UserManagementPage.js";
 import DataAnalytics from "./app/components/DataAnalytics.js"; // Renamed from Page3
 import SystemSettings from "./app/components/SystemSettings.js"; // Renamed from Page4
 import EnergyMonitor from "./app/components/EnergyMonitor.js"; // Renamed from Page5
@@ -405,7 +405,7 @@ function AppWithAuth({
                   exit="exit"
                   style={{ height: "100%" }}
                 >
-                  <UserManagement />
+                  <UserManagementPage />
                 </motion.div>
               }
             />
