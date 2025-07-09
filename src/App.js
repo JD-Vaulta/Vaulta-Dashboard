@@ -14,10 +14,10 @@ import Dashboard from "./pages/dashboard/DashboardPage.js";
 import UserManagementPage from "./pages/user-management/UserManagementPage.js";
 import DataAnalyticsPage from "./pages/data-analytics/DataAnalyticsPage.js";
 import SystemSettings from "./app/components/SystemSettings.js";
-import EnergyMonitor from "./app/components/EnergyMonitor.js";
+import EnergyMonitorPage from "./pages/energy-monitor/EnergyMonitorPage.js";
 import MLDashboardPage from "./pages/ml-dashboard/MLDashboardPage.js";
 import DiagnosticsPage from "./pages/diagnostics/DiagnosticsPage.js";
-import Warranty from "./app/components/Warranty.js"; // New component
+import WarrantyPage from "./pages/warranty/WarrantyPage.js"; // New component
 import TopBanner from "./app/components/TopBanner.js";
 import LoadingSpinner from "./app/components/LoadingSpinner.js";
 import useDynamoDB from "./useDynamoDB.js";
@@ -470,7 +470,7 @@ function AppWithAuth({
                   exit="exit"
                   style={{ height: "100%" }}
                 >
-                  <EnergyMonitor
+                  <EnergyMonitorPage
                     bmsData={bmsData}
                     lambdaResponse={lambdaResponse}
                     activeSection={activeSection.energy || "keyInsights"}
@@ -505,7 +505,7 @@ function AppWithAuth({
                   exit="exit"
                   style={{ height: "100%" }}
                 >
-                  <Warranty bmsData={bmsData} />
+                  <WarrantyPage bmsData={bmsData} />
                 </motion.div>
               }
             />
