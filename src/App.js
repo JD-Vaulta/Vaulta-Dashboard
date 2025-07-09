@@ -15,7 +15,7 @@ import UserManagementPage from "./pages/user-management/UserManagementPage.js";
 import DataAnalyticsPage from "./pages/data-analytics/DataAnalyticsPage.js";
 import SystemSettings from "./app/components/SystemSettings.js"; // Renamed from Page4
 import EnergyMonitor from "./app/components/EnergyMonitor.js"; // Renamed from Page5
-import MLDashboard from "./app/components/MLDashboard.js";
+import MLDashboardPage from "./pages/ml-dashboard/MLDashboardPage.js";
 import Diagnostics from "./app/components/Diagnostics.js"; // New component
 import Warranty from "./app/components/Warranty.js"; // New component
 import TopBanner from "./app/components/TopBanner.js";
@@ -437,7 +437,7 @@ function AppWithAuth({
                   exit="exit"
                   style={{ height: "100%" }}
                 >
-                  <MLDashboard
+                  <MLDashboardPage
                     bmsData={bmsData}
                     lambdaResponse={lambdaResponse}
                   />

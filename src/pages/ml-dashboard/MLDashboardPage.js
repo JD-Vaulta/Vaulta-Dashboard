@@ -5,7 +5,7 @@ import AWS from "aws-sdk";
 import { fetchAuthSession } from "aws-amplify/auth";
 import awsconfig from "../../aws-exports.js";
 
-const MLDashboardContainer = ({ signOut, bmsData }) => {
+const MLDashboardPage = ({ signOut, bmsData }) => {
   const [loading, setLoading] = useState(false);
   const [anomalies, setAnomalies] = useState([]);
   const [displayedAnomalies, setDisplayedAnomalies] = useState([]);
@@ -535,22 +535,6 @@ const MLDashboardContainer = ({ signOut, bmsData }) => {
                         </span>
                       </div>
                       <div>
-                        {/* <span style={{ color: colors.textLight }}>
-                          Anomaly Score:{" "}
-                        </span>
-                        <span
-                          style={{ fontWeight: "500", color: severity.color }}
-                        >
-                          {roundTo2(anomaly.anomaly_score)}
-                        </span> */}
-                      </div>
-                      <div>
-                        {/* <span style={{ color: colors.textLight }}>SOC: </span>
-                        <span style={{ fontWeight: "500" }}>
-                          {roundTo2(anomaly.SOCPercent)}%
-                        </span> */}
-                      </div>
-                      <div>
                         <span style={{ color: colors.textLight }}>
                           Total Voltage:{" "}
                         </span>
@@ -723,7 +707,7 @@ const MLDashboardContainer = ({ signOut, bmsData }) => {
                       textAlign: "center",
                     }}
                   >
-                    {severity.level} Risk Anomaly 
+                    {severity.level} Risk Anomaly
                   </div>
                 );
               })()}
@@ -794,7 +778,6 @@ const MLDashboardContainer = ({ signOut, bmsData }) => {
                   <div
                     style={{ display: "grid", gap: "10px", fontSize: "14px" }}
                   >
-                    
                     <div>
                       <strong>Total Voltage:</strong>{" "}
                       {roundTo2(selectedAnomaly.TotalBattVoltage)}V
@@ -902,4 +885,4 @@ const MLDashboardContainer = ({ signOut, bmsData }) => {
   );
 };
 
-export default MLDashboardContainer;
+export default MLDashboardPage;

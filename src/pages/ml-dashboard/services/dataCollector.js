@@ -1,15 +1,15 @@
 import AWS from "aws-sdk";
 import { fetchAuthSession } from "aws-amplify/auth";
-import awsconfig from "../../aws-exports.js";
+import awsconfig from "../../../aws-exports.js";
 
 // Helper function to safely convert values to numbers
 const safeNumberConversion = (value) => {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
     const num = parseFloat(value);
     return isNaN(num) ? 0 : num;
   }
-  if (value && typeof value === 'object' && value.N) {
+  if (value && typeof value === "object" && value.N) {
     const num = parseFloat(value.N);
     return isNaN(num) ? 0 : num;
   }
@@ -37,56 +37,68 @@ const calculateTimeRange = (timeRange) => {
 const createTimeChunks = (startTime, endTime, numChunks = 4) => {
   const timePerChunk = Math.floor((endTime - startTime) / numChunks);
   const chunks = [];
-  
+
   for (let i = 0; i < numChunks; i++) {
-    const chunkStart = startTime + (i * timePerChunk);
+    const chunkStart = startTime + i * timePerChunk;
     // For the last chunk, use endTime to avoid rounding issues
-    const chunkEnd = i === numChunks - 1 ? endTime : startTime + ((i + 1) * timePerChunk - 1);
-    chunks.push({ 
-      startTime: chunkStart, 
+    const chunkEnd =
+      i === numChunks - 1 ? endTime : startTime + ((i + 1) * timePerChunk - 1);
+    chunks.push({
+      startTime: chunkStart,
       endTime: chunkEnd,
       index: i,
-      total: numChunks
+      total: numChunks,
     });
   }
-  
+
   return chunks;
 };
 
 // Enhanced function to handle cached data with proper type conversion
-const fetchChunkData = async (dynamoDB, tableName, tagID, chunk, progressCallback) => {
+const fetchChunkData = async (
+  dynamoDB,
+  tableName,
+  tagID,
+  chunk,
+  progressCallback
+) => {
   let allItems = [];
   let lastEvaluatedKey = null;
   let pageCount = 0;
   let totalItems = 0;
-  
+
   try {
-    console.log(`Starting chunk ${chunk.index + 1}/${chunk.total}: ${new Date(chunk.startTime * 1000).toISOString()} to ${new Date(chunk.endTime * 1000).toISOString()}`);
-    
+    console.log(
+      `Starting chunk ${chunk.index + 1}/${chunk.total}: ${new Date(
+        chunk.startTime * 1000
+      ).toISOString()} to ${new Date(chunk.endTime * 1000).toISOString()}`
+    );
+
     do {
       // Create the base query params with proper type handling
       const params = {
         TableName: tableName,
-        KeyConditionExpression: "TagID = :tagID AND #ts BETWEEN :startTime AND :endTime",
+        KeyConditionExpression:
+          "TagID = :tagID AND #ts BETWEEN :startTime AND :endTime",
         ExpressionAttributeNames: {
-          "#ts": "Timestamp"
+          "#ts": "Timestamp",
         },
         ExpressionAttributeValues: {
           ":tagID": { S: tagID },
           ":startTime": { N: safeNumberConversion(chunk.startTime).toString() },
-          ":endTime": { N: safeNumberConversion(chunk.endTime).toString() }
+          ":endTime": { N: safeNumberConversion(chunk.endTime).toString() },
         },
-        Limit: 100
+        Limit: 100,
       };
-      
+
       if (lastEvaluatedKey) {
         params.ExclusiveStartKey = lastEvaluatedKey;
       }
-      
+
       const data = await dynamoDB.query(params).promise();
-      
+
       // Process items to ensure proper data types
-      const processedItems = data.Items.map(item => {
+      const processedItems = data.Items.map((item) => {
         const processedItem = {};
         for (const [key, value] of Object.entries(item)) {
           if (value.N) {
@@ -101,14 +113,18 @@ const fetchChunkData = async (dynamoDB, tableName, tagID, chunk, progressCallbac
         }
         return processedItem;
       });
-      
+
       allItems = allItems.concat(processedItems);
       lastEvaluatedKey = data.LastEvaluatedKey;
       pageCount++;
       totalItems += data.Items.length;
-      
-      console.log(`Chunk ${chunk.index + 1}/${chunk.total}: Page ${pageCount}, Total items: ${totalItems}`);
-      
+
+      console.log(
+        `Chunk ${chunk.index + 1}/${
+          chunk.total
+        }: Page ${pageCount}, Total items: ${totalItems}`
+      );
+
       if (progressCallback) {
         const hasMore = lastEvaluatedKey !== undefined;
         progressCallback({
@@ -117,26 +133,30 @@ const fetchChunkData = async (dynamoDB, tableName, tagID, chunk, progressCallbac
           itemCount: totalItems,
           hasMore,
           status: hasMore ? "in_progress" : "complete",
-          message: `Chunk ${chunk.index + 1}/${chunk.total}: Fetched ${totalItems} records...`
+          message: `Chunk ${chunk.index + 1}/${
+            chunk.total
+          }: Fetched ${totalItems} records...`,
         });
       }
-      
+
       if (lastEvaluatedKey) {
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
-      
     } while (lastEvaluatedKey);
-    
-    console.log(`Completed chunk ${chunk.index + 1}/${chunk.total}: ${totalItems} items in ${pageCount} pages`);
-    return { 
-      items: allItems, 
-      count: totalItems, 
-      chunk: chunk
+
+    console.log(
+      `Completed chunk ${chunk.index + 1}/${
+        chunk.total
+      }: ${totalItems} items in ${pageCount} pages`
+    );
+    return {
+      items: allItems,
+      count: totalItems,
+      chunk: chunk,
     };
-    
   } catch (error) {
     console.error(`Error in chunk ${chunk.index + 1}/${chunk.total}:`, error);
-    
+
     if (progressCallback) {
       progressCallback({
         chunk: chunk,
@@ -145,10 +165,12 @@ const fetchChunkData = async (dynamoDB, tableName, tagID, chunk, progressCallbac
         hasMore: false,
         status: "error",
         error: error.message,
-        message: `Error in chunk ${chunk.index + 1}/${chunk.total}: ${error.message}`
+        message: `Error in chunk ${chunk.index + 1}/${chunk.total}: ${
+          error.message
+        }`,
       });
     }
-    
+
     throw error;
   }
 };
@@ -156,11 +178,13 @@ const fetchChunkData = async (dynamoDB, tableName, tagID, chunk, progressCallbac
 // Updated data processing with type safety
 const processDataForTaskType = (taskType, data) => {
   // Ensure all numeric values are properly converted
-  const processedData = data.map(item => {
+  const processedData = data.map((item) => {
     const processedItem = {};
     for (const [key, value] of Object.entries(item)) {
-      processedItem[key] = typeof value === 'string' && !isNaN(value) ? 
-        safeNumberConversion(value) : value;
+      processedItem[key] =
+        typeof value === "string" && !isNaN(value)
+          ? safeNumberConversion(value)
+          : value;
     }
     return processedItem;
   });
@@ -221,26 +245,26 @@ const processDataForTaskType = (taskType, data) => {
           voltage: {
             mean: 0,
             stdDev: 0,
-            trend: []
+            trend: [],
           },
           current: {
             mean: 0,
             stdDev: 0,
-            trend: []
-          }
+            trend: [],
+          },
         },
         cycleInformation: {
           count: 0,
           depthOfDischarge: [],
           chargeDurations: [],
-          dischargeDurations: []
+          dischargeDurations: [],
         },
         temperatureExtremes: {
           max: 0,
-          min: 0,
-          fluctuations: []
+          min: 100,
+          fluctuations: [],
         },
-        chargingEfficiency: []
+        chargingEfficiency: [],
       };
     default:
       throw new Error(`Unknown task type: ${taskType}`);
@@ -251,32 +275,40 @@ const processDataForTaskType = (taskType, data) => {
 const streamProcessData = (taskType, chunks, progressCallback) => {
   return new Promise((resolve) => {
     setTimeout(() => {
-      const allItems = chunks.reduce((all, chunk) => all.concat(chunk.items), []);
+      const allItems = chunks.reduce(
+        (all, chunk) => all.concat(chunk.items),
+        []
+      );
       const totalCount = allItems.length;
       const rawSample = allItems.slice(0, 5);
-      
+
       if (progressCallback) {
         progressCallback({
           stage: "processing",
           status: "complete",
           progress: {
-            completedPercentage: 100
+            completedPercentage: 100,
           },
-          message: `Completed processing ${totalCount} records for ${taskType}`
+          message: `Completed processing ${totalCount} records for ${taskType}`,
         });
       }
-      
+
       resolve({
         processedData: processDataForTaskType(taskType, allItems),
         totalCount,
-        rawSample
+        rawSample,
       });
     }, 1000);
   });
 };
 
 // Main function with enhanced error handling
-export const collectMLData = async (selectedTagId, selectedTimeRange, taskType, progressCallback) => {
+export const collectMLData = async (
+  selectedTagId,
+  selectedTimeRange,
+  taskType,
+  progressCallback
+) => {
   const startTime = performance.now();
   try {
     if (progressCallback) {
@@ -284,10 +316,10 @@ export const collectMLData = async (selectedTagId, selectedTimeRange, taskType, 
         stage: "initializing",
         status: "in_progress",
         message: "Setting up data collection...",
-        timing: { start: startTime }
+        timing: { start: startTime },
       });
     }
-    
+
     const session = await fetchAuthSession();
     const credentials = session.credentials;
 
@@ -297,15 +329,25 @@ export const collectMLData = async (selectedTagId, selectedTimeRange, taskType, 
       credentials,
     });
 
-    const { startTime: rangeStart, endTime: rangeEnd } = calculateTimeRange(selectedTimeRange);
-    console.log(`Time range: ${new Date(rangeStart * 1000).toISOString()} to ${new Date(rangeEnd * 1000).toISOString()}`);
-    
-    const numChunks = selectedTimeRange === "1year" ? 12 : 
-                      selectedTimeRange === "6months" ? 6 : 
-                      selectedTimeRange === "3months" ? 4 : 4;
-    
+    const { startTime: rangeStart, endTime: rangeEnd } =
+      calculateTimeRange(selectedTimeRange);
+    console.log(
+      `Time range: ${new Date(rangeStart * 1000).toISOString()} to ${new Date(
+        rangeEnd * 1000
+      ).toISOString()}`
+    );
+
+    const numChunks =
+      selectedTimeRange === "1year"
+        ? 12
+        : selectedTimeRange === "6months"
+        ? 6
+        : selectedTimeRange === "3months"
+        ? 4
+        : 4;
+
     const chunks = createTimeChunks(rangeStart, rangeEnd, numChunks);
-    
+
     if (progressCallback) {
       progressCallback({
         stage: "fetching",
@@ -314,16 +356,16 @@ export const collectMLData = async (selectedTagId, selectedTimeRange, taskType, 
         progress: {
           chunks: numChunks,
           completedChunks: 0,
-          completedPercentage: 0
+          completedPercentage: 0,
         },
         timing: {
           start: startTime,
-          elapsed: performance.now() - startTime
-        }
+          elapsed: performance.now() - startTime,
+        },
       });
     }
-    
-    const chunkPromises = chunks.map((chunk) => 
+
+    const chunkPromises = chunks.map((chunk) =>
       fetchChunkData(
         dynamoDB,
         "CAN_BMS_Data",
@@ -338,31 +380,46 @@ export const collectMLData = async (selectedTagId, selectedTimeRange, taskType, 
               progress: {
                 chunks: numChunks,
                 currentChunk: progress.chunk.index + 1,
-                completedChunks: progress.status === "complete" ? progress.chunk.index + 1 : progress.chunk.index,
-                completedPercentage: Math.floor(((progress.chunk.index * 100) + 
-                  (progress.status === "complete" ? 100 : (progress.itemCount / 100) * 100)) / numChunks)
+                completedChunks:
+                  progress.status === "complete"
+                    ? progress.chunk.index + 1
+                    : progress.chunk.index,
+                completedPercentage: Math.floor(
+                  (progress.chunk.index * 100 +
+                    (progress.status === "complete"
+                      ? 100
+                      : (progress.itemCount / 100) * 100)) /
+                    numChunks
+                ),
               },
               timing: {
                 start: startTime,
-                elapsed: performance.now() - startTime
-              }
+                elapsed: performance.now() - startTime,
+              },
             };
-            
+
             progressCallback(overallProgress);
           }
         }
       )
     );
-    
+
     console.log(`Waiting for ${numChunks} chunks to complete...`);
     const chunkResults = await Promise.all(chunkPromises);
-    const totalItems = chunkResults.reduce((sum, chunk) => sum + chunk.count, 0);
-    
+    const totalItems = chunkResults.reduce(
+      (sum, chunk) => sum + chunk.count,
+      0
+    );
+
     const fetchCompletionTime = performance.now();
     const fetchDuration = fetchCompletionTime - startTime;
-    
-    console.log(`All chunks completed. Total items: ${totalItems}. Fetch duration: ${fetchDuration.toFixed(2)}ms`);
-    
+
+    console.log(
+      `All chunks completed. Total items: ${totalItems}. Fetch duration: ${fetchDuration.toFixed(
+        2
+      )}ms`
+    );
+
     if (progressCallback) {
       progressCallback({
         stage: "processing",
@@ -370,30 +427,34 @@ export const collectMLData = async (selectedTagId, selectedTimeRange, taskType, 
         message: `Processing ${totalItems} records for ${taskType}...`,
         progress: {
           totalItems,
-          completedPercentage: 0
+          completedPercentage: 0,
         },
         timing: {
           start: startTime,
           fetchComplete: fetchCompletionTime,
           fetchDuration,
-          elapsed: fetchCompletionTime - startTime
-        }
+          elapsed: fetchCompletionTime - startTime,
+        },
       });
     }
-    
+
     console.log(`Starting stream processing for ${taskType}...`);
     const processedResult = await streamProcessData(
-      taskType, 
+      taskType,
       chunkResults,
       progressCallback
     );
-    
+
     const completionTime = performance.now();
     const totalDuration = completionTime - startTime;
     const processingDuration = completionTime - fetchCompletionTime;
-    
-    console.log(`Stream processing completed for ${taskType}. Processing duration: ${processingDuration.toFixed(2)}ms. Total duration: ${totalDuration.toFixed(2)}ms`);
-    
+
+    console.log(
+      `Stream processing completed for ${taskType}. Processing duration: ${processingDuration.toFixed(
+        2
+      )}ms. Total duration: ${totalDuration.toFixed(2)}ms`
+    );
+
     if (progressCallback) {
       progressCallback({
         stage: "completed",
@@ -405,8 +466,8 @@ export const collectMLData = async (selectedTagId, selectedTimeRange, taskType, 
           fetchDuration,
           processingDuration,
           totalDuration,
-          end: completionTime
-        }
+          end: completionTime,
+        },
       });
     }
 
@@ -421,8 +482,8 @@ export const collectMLData = async (selectedTagId, selectedTimeRange, taskType, 
         timing: {
           fetchDuration,
           processingDuration,
-          totalDuration
-        }
+          totalDuration,
+        },
       },
       rawData: chunkResults.reduce((all, chunk) => all.concat(chunk.items), []),
       rawSampleData: processedResult.rawSample,
@@ -430,7 +491,7 @@ export const collectMLData = async (selectedTagId, selectedTimeRange, taskType, 
     };
   } catch (error) {
     console.error("Error collecting ML data:", error);
-    
+
     if (progressCallback) {
       progressCallback({
         stage: "error",
@@ -439,11 +500,11 @@ export const collectMLData = async (selectedTagId, selectedTimeRange, taskType, 
         timing: {
           start: startTime,
           error: performance.now(),
-          elapsed: performance.now() - startTime
-        }
+          elapsed: performance.now() - startTime,
+        },
       });
     }
-    
+
     throw error;
   }
 };
@@ -453,5 +514,5 @@ export default {
   calculateTimeRange,
   createTimeChunks,
   fetchChunkData,
-  streamProcessData
+  streamProcessData,
 };
