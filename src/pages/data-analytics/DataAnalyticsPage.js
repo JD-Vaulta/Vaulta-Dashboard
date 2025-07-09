@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import DataViewer from "./DataViewer.js";
+import DataViewer from "./components/DataViewer.js";
 import { fetchData } from "../../queries.js";
 
 // Updated color scheme
@@ -23,7 +23,7 @@ const colors = {
   error: "#bf1c1b", // thunderbird
 };
 
-const Page3 = ({ signOut }) => {
+const DataAnalyticsPage = () => {
   const [selectedTagId, setSelectedTagId] = useState("0x480");
   const [selectedTimeRange, setSelectedTimeRange] = useState("1hour");
   const [data, setData] = useState(null);
@@ -65,7 +65,6 @@ const Page3 = ({ signOut }) => {
     { label: "Last 1 Month", value: "1month" },
   ];
 
-  // Data fetcher using consolidated queries.js
   const handleFetchData = async () => {
     setLoading(true);
     setError(null);
@@ -121,7 +120,6 @@ const Page3 = ({ signOut }) => {
           boxSizing: "border-box",
         }}
       >
-        {/* Main Card Container */}
         <div
           style={{
             backgroundColor: "#fff",
@@ -136,13 +134,7 @@ const Page3 = ({ signOut }) => {
             minHeight: "500px",
           }}
         >
-          {/* Header Section */}
-          <div
-            style={{
-              textAlign: "center",
-              marginBottom: "40px",
-            }}
-          >
+          <div style={{ textAlign: "center", marginBottom: "40px" }}>
             <h1
               style={{
                 fontSize: "2.5rem",
@@ -165,7 +157,6 @@ const Page3 = ({ signOut }) => {
             </p>
           </div>
 
-          {/* Controls Section */}
           <div
             style={{
               display: "flex",
@@ -175,15 +166,7 @@ const Page3 = ({ signOut }) => {
               maxWidth: "600px",
             }}
           >
-            {/* Dropdowns Row */}
-            <div
-              style={{
-                display: "flex",
-                gap: "20px",
-                flexWrap: "wrap",
-              }}
-            >
-              {/* TagID Dropdown */}
+            <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: "250px" }}>
                 <label
                   style={{
@@ -220,7 +203,6 @@ const Page3 = ({ signOut }) => {
                 </select>
               </div>
 
-              {/* Time Range Dropdown */}
               <div style={{ flex: 1, minWidth: "250px" }}>
                 <label
                   style={{
@@ -258,7 +240,6 @@ const Page3 = ({ signOut }) => {
               </div>
             </div>
 
-            {/* Analyze Button */}
             <div style={{ textAlign: "center" }}>
               <button
                 onClick={handleFetchData}
@@ -289,7 +270,6 @@ const Page3 = ({ signOut }) => {
               </button>
             </div>
 
-            {/* Info Section */}
             <div
               style={{
                 textAlign: "center",
@@ -329,4 +309,4 @@ const Page3 = ({ signOut }) => {
   );
 };
 
-export default Page3;
+export default DataAnalyticsPage;

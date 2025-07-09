@@ -12,7 +12,7 @@ import awsconfig from "./aws-exports.js";
 import AuthWrapper from "./AuthWrapper.js";
 import Dashboard from "./pages/dashboard/DashboardPage.js";
 import UserManagementPage from "./pages/user-management/UserManagementPage.js";
-import DataAnalytics from "./app/components/DataAnalytics.js"; // Renamed from Page3
+import DataAnalyticsPage from "./pages/data-analytics/DataAnalyticsPage.js";
 import SystemSettings from "./app/components/SystemSettings.js"; // Renamed from Page4
 import EnergyMonitor from "./app/components/EnergyMonitor.js"; // Renamed from Page5
 import MLDashboard from "./app/components/MLDashboard.js";
@@ -420,7 +420,7 @@ function AppWithAuth({
                   exit="exit"
                   style={{ height: "100%" }}
                 >
-                  <DataAnalytics
+                  <DataAnalyticsPage
                     activeSection={activeSection.analytics || "overview"}
                   />
                 </motion.div>
