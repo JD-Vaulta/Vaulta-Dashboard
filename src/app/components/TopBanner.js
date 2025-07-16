@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import logo from "../../logo.svg";
 import { signOut } from "aws-amplify/auth";
+import BatterySelector from "../../components/common/BatterySelector.js"
+import { useBatteryContext } from "../../contexts/BatteryContext.js";
 
 const TopBanner = ({
   bmsState,
@@ -14,6 +16,9 @@ const TopBanner = ({
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [userEmail, setUserEmail] = useState(null);
+
+  // Battery context
+  const { hasRegisteredBatteries, selectedBattery, batteryCount } = useBatteryContext();
 
   // Format timestamps
   const formatTime = (date) => {
@@ -98,10 +103,12 @@ const TopBanner = ({
     { label: "User Management", path: "/user-management" },
     { label: "Data Analytics", path: "/data-analytics" },
     { label: "ML Dashboard", path: "/ml-dashboard" },
- // { label: "System Settings", path: "/system-settings" },
+    // { label: "System Settings", path: "/system-settings" },
     { label: "Energy Monitor", path: "/energy-monitor" },
     { label: "Diagnostics", path: "/diagnostics" },
     { label: "Warranty", path: "/warranty" },
+    // Add Battery Management menu item
+    { label: "Battery Management", path: "/battery-management" },
   ];
 
   // Check if a menu item is active
@@ -248,6 +255,92 @@ const TopBanner = ({
         </div>
       </div>
 
+      {/* Battery Selector Section - Only show if user has registered batteries */}
+      {hasRegisteredBatteries && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "8px 20px",
+            backgroundColor: "#f8f9fa",
+            borderBottom: "1px solid #e6e6e6",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span
+              style={{
+                color: "#666",
+                fontWeight: "600",
+                fontSize: "0.9rem",
+              }}
+            >
+              Active Battery:
+            </span>
+            <BatterySelector
+              style={{
+                backgroundColor: "white",
+                border: "1px solid #ddd",
+                fontSize: "0.9rem",
+                padding: "6px 10px",
+              }}
+              showAddButton={false}
+              compact={true}
+            />
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            {selectedBattery && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  color: "#666",
+                  fontSize: "0.85rem",
+                }}
+              >
+                <span>
+                  {selectedBattery.nickname || selectedBattery.serialNumber}
+                </span>
+                <span
+                  style={{
+                    backgroundColor: "#4CAF50",
+                    color: "white",
+                    padding: "2px 6px",
+                    borderRadius: "10px",
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
+                  }}
+                >
+                  {batteryCount} registered
+                </span>
+              </div>
+            )}
+            
+            <button
+              onClick={() => navigate("/battery-management")}
+              style={{
+                padding: "6px 12px",
+                backgroundColor: "#2196F3",
+                color: "white",
+                border: "none",
+                borderRadius: "5px",
+                fontSize: "0.85rem",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "background-color 0.2s ease",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              }}
+              onMouseOver={(e) => e.target.style.backgroundColor = "#1976D2"}
+              onMouseOut={(e) => e.target.style.backgroundColor = "#2196F3"}
+            >
+              Manage Batteries
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Navigation and Tab Controls */}
       <div
         style={{
@@ -258,26 +351,54 @@ const TopBanner = ({
         }}
       >
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          {menuItems.map((item, index) => (
-            <button
-              key={index}
-              onClick={() => navigate(item.path)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                padding: "8px 12px",
-                backgroundColor: isActive(item.path) ? "#4CAF50" : "#fff",
-                color: isActive(item.path) ? "#fff" : "#333",
-                border: "1px solid #e6e6e6",
-                borderRadius: "5px",
-                cursor: "pointer",
-                fontSize: "0.9rem",
-                transition: "background-color 0.2s",
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
+          {menuItems.map((item, index) => {
+            // Special styling for Battery Management button
+            const isBatteryManagement = item.path === "/battery-management";
+            const isActiveItem = isActive(item.path);
+            
+            return (
+              <button
+                key={index}
+                onClick={() => navigate(item.path)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "8px 12px",
+                  backgroundColor: isActiveItem 
+                    ? "#4CAF50" 
+                    : isBatteryManagement 
+                      ? "#e3f2fd" 
+                      : "#fff",
+                  color: isActiveItem 
+                    ? "#fff" 
+                    : isBatteryManagement 
+                      ? "#1976d2" 
+                      : "#333",
+                  border: `1px solid ${isBatteryManagement ? "#2196F3" : "#e6e6e6"}`,
+                  borderRadius: "5px",
+                  cursor: "pointer",
+                  fontSize: "0.9rem",
+                  fontWeight: isBatteryManagement ? "600" : "normal",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseOver={(e) => {
+                  if (!isActiveItem && isBatteryManagement) {
+                    e.target.style.backgroundColor = "#bbdefb";
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!isActiveItem && isBatteryManagement) {
+                    e.target.style.backgroundColor = "#e3f2fd";
+                  }
+                }}
+              >
+                {isBatteryManagement && (
+                  <span style={{ marginRight: "6px" }}>🔋</span>
+                )}
+                {item.label}
+              </button>
+            );
+          })}
         </div>
 
         <div style={{ display: "flex", gap: "10px" }}>{children}</div>

@@ -24,6 +24,13 @@ import TopBanner from "./app/components/TopBanner.js";
 import LoadingSpinner from "./app/components/LoadingSpinner.js";
 import useDynamoDB from "./useDynamoDB.js";
 import { invokeLambdaFunction } from "./calc/lastmonthdata.js";
+
+// Battery Registration Imports
+import { BatteryProvider } from "./contexts/BatteryContext.js";
+import BatteryProtectedRoute from "./components/auth/BatteryProtectedRoute.js";
+import BatteryRegistrationPage from "./pages/battery-registration/BatteryRegistrationPage.js";
+import BatteryManagementPage from "./pages/battery-registration/BatteryManagementPage.js";
+
 import "@aws-amplify/ui-react/styles.css";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -102,47 +109,51 @@ function App() {
     <BrowserRouter>
       <CustomAuthWrapper>
         {({ user, signOut, navigate, checkAuthStatus }) => (
-          <Routes>
-            {/* Public Routes */}
-            <Route
-              path="/signin"
-              element={
-                user ? (
-                  <Navigate to="/dashboard" replace />
-                ) : (
-                  <SignInPage onSignIn={checkAuthStatus} />
-                )
-              }
-            />
-            <Route
-              path="/signup"
-              element={
-                user ? (
-                  <Navigate to="/dashboard" replace />
-                ) : (
-                  <SignUpPage />
-                )
-              }
-            />
-            
-            {/* Protected Routes */}
-            <Route
-              path="/*"
-              element={
-                <ProtectedRoute user={user}>
-                  <AppWithAuth
-                    user={user}
-                    signOut={signOut}
-                    navigate={navigate}
-                    bmsData={bmsData}
-                    lambdaResponse={lambdaResponse}
-                    lastUpdate={lastUpdate}
-                    isUpdating={isUpdating}
-                  />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
+          <BatteryProvider user={user}>
+            <Routes>
+              {/* Public Routes */}
+              <Route
+                path="/signin"
+                element={
+                  user ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <SignInPage onSignIn={checkAuthStatus} />
+                  )
+                }
+              />
+              <Route
+                path="/signup"
+                element={
+                  user ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <SignUpPage />
+                  )
+                }
+              />
+              
+              {/* Protected Routes */}
+              <Route
+                path="/*"
+                element={
+                  <ProtectedRoute user={user}>
+                    <BatteryProtectedRoute user={user}>
+                      <AppWithAuth
+                        user={user}
+                        signOut={signOut}
+                        navigate={navigate}
+                        bmsData={bmsData}
+                        lambdaResponse={lambdaResponse}
+                        lastUpdate={lastUpdate}
+                        isUpdating={isUpdating}
+                      />
+                    </BatteryProtectedRoute>
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </BatteryProvider>
         )}
       </CustomAuthWrapper>
     </BrowserRouter>
@@ -194,6 +205,7 @@ function AppWithAuth({
     if (path.startsWith("/energy-monitor")) return "energy";
     if (path.startsWith("/diagnostics")) return "diagnostics";
     if (path.startsWith("/warranty")) return "warranty";
+    if (path.startsWith("/battery-")) return "battery";
     return "";
   };
 
@@ -409,6 +421,38 @@ function AppWithAuth({
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
+            {/* Battery Registration Routes */}
+            <Route
+              path="/battery-registration"
+              element={
+                <motion.div
+                  variants={pageVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  style={{ height: "100%" }}
+                >
+                  <BatteryRegistrationPage />
+                </motion.div>
+              }
+            />
+
+            <Route
+              path="/battery-management"
+              element={
+                <motion.div
+                  variants={pageVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  style={{ height: "100%" }}
+                >
+                  <BatteryManagementPage />
+                </motion.div>
+              }
+            />
+
+            {/* Existing Routes */}
             <Route
               path="/dashboard"
               element={

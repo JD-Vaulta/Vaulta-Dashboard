@@ -16,6 +16,9 @@ import {
   ReferenceLine,
 } from "recharts";
 
+// Battery Registration Integration
+import { useBatteryContext } from "../../../contexts/BatteryContext.js";
+
 const colors = {
   edward: "#adaead",
   heavyMetal: "#1a1b1a",
@@ -41,12 +44,14 @@ const DataViewer = ({
   error,
   data,
   selectedTagId,
-  setSelectedTagId,
   onFetchData,
-  baseIds,
+  // Removed baseIds prop since we're using battery registration
 }) => {
   const [selectedNode, setSelectedNode] = useState("Node0");
   const [selectedParameter, setSelectedParameter] = useState("Temperature");
+
+  // Battery Registration Integration
+  const { selectedBattery } = useBatteryContext();
 
   if (loading) {
     return (
@@ -331,17 +336,6 @@ const DataViewer = ({
     transition: "all 0.2s ease",
   });
 
-  const selectStyle = {
-    padding: "8px 12px",
-    borderRadius: "6px",
-    border: `1px solid ${colors.secondary}`,
-    backgroundColor: "#fff",
-    color: colors.textDark,
-    fontSize: "0.9rem",
-    cursor: "pointer",
-    minWidth: "150px",
-  };
-
   return (
     <>
       {/* Responsive CSS Styles */}
@@ -440,7 +434,7 @@ const DataViewer = ({
       `}</style>
 
       <div className="grid-container">
-        {/* div1 - Header with title, battery selection, and fetch button */}
+        {/* div1 - Header with title and battery info - Updated to show current battery */}
         <div
           className="div1"
           style={{
@@ -461,7 +455,7 @@ const DataViewer = ({
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
-              marginRight: "auto", // Pushes everything else to the right
+              marginRight: "auto",
             }}
           >
             Data Analytics
@@ -471,26 +465,41 @@ const DataViewer = ({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "clamp(4px, 1vw, 12px)",
-              marginLeft: "auto", // Ensures this group stays on the right
+              gap: "clamp(8px, 2vw, 16px)",
+              marginLeft: "auto",
             }}
           >
-            <select
-              value={selectedTagId}
-              onChange={(e) => setSelectedTagId(e.target.value)}
-              style={{
-                ...selectStyle,
-                minWidth: "clamp(80px, 15vw, 150px)",
-                fontSize: "clamp(0.6rem, 1.2vw, 0.9rem)",
-              }}
-            >
-              {baseIds &&
-                baseIds.map((id) => (
-                  <option key={id} value={id}>
-                    {id}
-                  </option>
-                ))}
-            </select>
+            {/* Show current battery info */}
+            {selectedBattery && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end",
+                  gap: "2px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "clamp(0.7rem, 1.2vw, 0.9rem)",
+                    color: colors.textLight,
+                    fontWeight: "500",
+                  }}
+                >
+                  Analyzing Battery:
+                </span>
+                <span
+                  style={{
+                    fontSize: "clamp(0.8rem, 1.4vw, 1rem)",
+                    color: colors.textDark,
+                    fontWeight: "700",
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {selectedBattery.nickname || selectedBattery.serialNumber} ({selectedBattery.batteryId})
+                </span>
+              </div>
+            )}
 
             <button
               onClick={onFetchData}
@@ -504,7 +513,7 @@ const DataViewer = ({
                 whiteSpace: "nowrap",
               }}
             >
-              Fetch Data
+              Refresh Data
             </button>
           </div>
         </div>

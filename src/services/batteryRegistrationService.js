@@ -1,283 +1,264 @@
-// src/services/batteryRegistrationService.js
-import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
-import AWS from 'aws-sdk';
+import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
+import { fetchAuthSession } from 'aws-amplify/auth';
+import awsconfig from "../aws-exports.js";
 
-// Logging configuration - set to false to disable logs
+// Configurable logging - set to false to disable logs
 const ENABLE_LOGGING = true;
-const LOG_PREFIX = '[BatteryRegistrationService]';
 
 const log = (...args) => {
   if (ENABLE_LOGGING) {
-    console.log(LOG_PREFIX, ...args);
+    console.log('[BatteryRegistration]', ...args);
   }
 };
 
 const logError = (...args) => {
   if (ENABLE_LOGGING) {
-    console.error(LOG_PREFIX, ...args);
+    console.error('[BatteryRegistration]', ...args);
   }
 };
 
-const logWarn = (...args) => {
-  if (ENABLE_LOGGING) {
-    console.warn(LOG_PREFIX, ...args);
+// Initialize Lambda client with Amplify credentials
+const getLambdaClient = async () => {
+  try {
+    // Get credentials from the current Amplify session
+    const session = await fetchAuthSession();
+    
+    if (!session.credentials) {
+      throw new Error('No credentials available from Amplify session');
+    }
+
+    log('Creating Lambda client with Amplify credentials');
+    
+    return new LambdaClient({
+      region: awsconfig.aws_project_region,
+      credentials: {
+        accessKeyId: session.credentials.accessKeyId,
+        secretAccessKey: session.credentials.secretAccessKey,
+        sessionToken: session.credentials.sessionToken,
+      },
+    });
+  } catch (error) {
+    logError('Error getting Amplify credentials:', error);
+    throw new Error('Failed to authenticate with AWS. Please ensure you are logged in.');
   }
 };
 
-// Lambda function names - update these with your actual function names
-const LAMBDA_FUNCTIONS = {
-  REGISTER_BATTERY: 'registerBattery',
-  GET_USER_BATTERIES: 'getUserBatteries',
-  MANAGE_BATTERY: 'manageBattery'
+// Lambda function ARNs - Add these to your .env file
+const LAMBDA_ARNS = {
+  registerBattery: process.env.REACT_APP_REGISTER_BATTERY_LAMBDA_ARN,
+  getUserBatteries: process.env.REACT_APP_GET_BATTERIES_LAMBDA_ARN,
+  manageBattery: process.env.REACT_APP_MANAGE_BATTERY_LAMBDA_ARN,
 };
 
-class BatteryRegistrationService {
-  constructor() {
-    this.lambdaClient = null;
-    this.currentUser = null;
-    this.initializeAttempted = false;
-    log('Service initialized');
+// Get current user ID from session
+const getCurrentUserId = async () => {
+  try {
+    const session = await fetchAuthSession();
+    // Get user ID from the identity ID (Cognito Identity Pool)
+    return session.userSub || null;
+  } catch (error) {
+    logError('Error getting user ID:', error);
+    return null;
   }
+};
 
-  async initialize() {
-    if (this.initializeAttempted) {
-      log('Initialize already attempted, skipping...');
-      return this.lambdaClient !== null;
+// Helper function to invoke Lambda functions
+const invokeLambda = async (functionArn, payload) => {
+  try {
+    const client = await getLambdaClient();
+    
+    // Add user ID to payload
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      throw new Error('Unable to get user ID from session');
+    }
+    
+    const enrichedPayload = {
+      userId: userId,
+      ...payload
+    };
+    
+    const command = new InvokeCommand({
+      FunctionName: functionArn,
+      Payload: JSON.stringify(enrichedPayload),
+    });
+
+    log('Invoking Lambda:', functionArn, 'with payload:', enrichedPayload);
+    const response = await client.send(command);
+    
+    const responseBody = JSON.parse(new TextDecoder().decode(response.Payload));
+    log('Lambda response:', responseBody);
+    
+    if (response.StatusCode !== 200) {
+      throw new Error(`Lambda invocation failed with status: ${response.StatusCode}`);
     }
 
-    this.initializeAttempted = true;
-    log('Initializing AWS Lambda client...');
-
-    try {
-      // Get current user
-      this.currentUser = await getCurrentUser();
-      log('Current user retrieved:', { 
-        userId: this.currentUser.userId,
-        username: this.currentUser.username 
-      });
-
-      // Get AWS credentials
-      const session = await fetchAuthSession();
-      const credentials = session.credentials;
-      log('AWS credentials retrieved');
-
-      // Initialize Lambda client
-      this.lambdaClient = new AWS.Lambda({
-        region: process.env.REACT_APP_AWS_REGION || 'ap-southeast-2',
-        credentials: {
-          accessKeyId: credentials.accessKeyId,
-          secretAccessKey: credentials.secretAccessKey,
-          sessionToken: credentials.sessionToken,
-        },
-      });
-
-      log('Lambda client initialized successfully');
-      return true;
-    } catch (error) {
-      logError('Failed to initialize service:', error);
-      return false;
+    if (responseBody.statusCode && responseBody.statusCode !== 200) {
+      throw new Error(responseBody.body || 'Lambda function returned error');
     }
+
+    return responseBody;
+  } catch (error) {
+    logError('Lambda invocation error:', error);
+    throw error;
   }
+};
 
-  async invokeLambda(functionName, payload) {
-    log(`Invoking Lambda function: ${functionName}`);
-    log('Payload:', payload);
-
-    if (!this.lambdaClient) {
-      const initialized = await this.initialize();
-      if (!initialized) {
-        throw new Error('Failed to initialize AWS services');
-      }
-    }
-
-    try {
-      const params = {
-        FunctionName: functionName,
-        Payload: JSON.stringify(payload),
-      };
-
-      log('Lambda invocation params:', params);
-
-      const result = await this.lambdaClient.invoke(params).promise();
-      log('Lambda raw response:', result);
-
-      // Parse the response
-      const response = JSON.parse(result.Payload);
-      log('Lambda parsed response:', response);
-
-      if (response.statusCode !== 200) {
-        const errorBody = JSON.parse(response.body);
-        logError('Lambda function returned error:', errorBody);
-        throw new Error(errorBody.error || 'Lambda function failed');
-      }
-
-      const successBody = JSON.parse(response.body);
-      log('Lambda success response body:', successBody);
-      return successBody;
-    } catch (error) {
-      logError(`Lambda invocation failed for ${functionName}:`, error);
-      throw error;
-    }
-  }
-
-  async registerBattery(serialNumber, batteryId, nickname = '') {
+// Register a new battery
+export const registerBattery = async (serialNumber, batteryId, nickname = null) => {
+  try {
     log('Registering battery:', { serialNumber, batteryId, nickname });
-
-    // Input validation
-    if (!serialNumber || !batteryId) {
-      logError('Missing required fields:', { serialNumber, batteryId });
-      throw new Error('Serial number and battery ID are required');
-    }
-
-    // Ensure user is available
-    if (!this.currentUser) {
-      await this.initialize();
-    }
-
+    
     const payload = {
-      body: JSON.stringify({
-        userId: this.currentUser.userId,
-        serialNumber: serialNumber.trim(),
-        batteryId: batteryId.trim(),
-        nickname: nickname.trim(),
-      }),
+      serialNumber: serialNumber.trim(),
+      batteryId: batteryId.trim(),
+      nickname: nickname ? nickname.trim() : null,
     };
 
-    try {
-      const response = await this.invokeLambda(LAMBDA_FUNCTIONS.REGISTER_BATTERY, payload);
-      log('Battery registration successful:', response);
-      return response;
-    } catch (error) {
-      logError('Battery registration failed:', error);
-      throw error;
-    }
+    const response = await invokeLambda(LAMBDA_ARNS.registerBattery, payload);
+    
+    log('Battery registered successfully:', response);
+    return {
+      success: true,
+      data: response.body || response,
+      message: 'Battery registered successfully'
+    };
+  } catch (error) {
+    logError('Error registering battery:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'Failed to register battery'
+    };
   }
+};
 
-  async getUserBatteries() {
+// Get user's registered batteries
+export const getUserBatteries = async () => {
+  try {
     log('Fetching user batteries...');
-
-    // Ensure user is available
-    if (!this.currentUser) {
-      await this.initialize();
+    
+    // Send empty payload - userId will be added by invokeLambda
+    const response = await invokeLambda(LAMBDA_ARNS.getUserBatteries, {});
+    
+    // Handle different response formats
+    let batteries = [];
+    if (response.body) {
+      // If body is a string, try to parse it
+      if (typeof response.body === 'string') {
+        try {
+          const parsedBody = JSON.parse(response.body);
+          batteries = parsedBody.batteries || parsedBody || [];
+        } catch (e) {
+          batteries = [];
+        }
+      } else {
+        // Body is already an object
+        batteries = response.body.batteries || response.body || [];
+      }
+    } else {
+      // Response is the data directly
+      batteries = response.batteries || response || [];
     }
+    
+    log('User batteries fetched:', batteries);
+    
+    return {
+      success: true,
+      data: Array.isArray(batteries) ? batteries : [],
+      message: 'Batteries fetched successfully'
+    };
+  } catch (error) {
+    logError('Error fetching user batteries:', error);
+    return {
+      success: false,
+      error: error.message,
+      data: [],
+      message: 'Failed to fetch batteries'
+    };
+  }
+};
 
+// Deactivate a battery registration
+export const deactivateBattery = async (registrationId) => {
+  try {
+    log('Deactivating battery:', registrationId);
+    
     const payload = {
-      body: JSON.stringify({
-        userId: this.currentUser.userId,
-      }),
+      action: 'deactivate',
+      registrationId: registrationId,
     };
 
-    try {
-      const response = await this.invokeLambda(LAMBDA_FUNCTIONS.GET_USER_BATTERIES, payload);
-      log('User batteries retrieved:', response);
-      return response.batteries || [];
-    } catch (error) {
-      logError('Failed to fetch user batteries:', error);
-      throw error;
-    }
-  }
-
-  async deactivateBattery(registrationId) {
-    log('Deactivating battery:', { registrationId });
-
-    if (!registrationId) {
-      logError('Missing registration ID');
-      throw new Error('Registration ID is required');
-    }
-
-    // Ensure user is available
-    if (!this.currentUser) {
-      await this.initialize();
-    }
-
-    const payload = {
-      body: JSON.stringify({
-        userId: this.currentUser.userId,
-        registrationId,
-        action: 'deactivate',
-      }),
+    const response = await invokeLambda(LAMBDA_ARNS.manageBattery, payload);
+    
+    log('Battery deactivated successfully:', response);
+    return {
+      success: true,
+      data: response.body || response,
+      message: 'Battery deactivated successfully'
     };
-
-    try {
-      const response = await this.invokeLambda(LAMBDA_FUNCTIONS.MANAGE_BATTERY, payload);
-      log('Battery deactivation successful:', response);
-      return response;
-    } catch (error) {
-      logError('Battery deactivation failed:', error);
-      throw error;
-    }
+  } catch (error) {
+    logError('Error deactivating battery:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'Failed to deactivate battery'
+    };
   }
+};
 
-  async validateBatteryAccess(batteryId) {
-    log('Validating battery access:', { batteryId });
-
-    try {
-      const userBatteries = await this.getUserBatteries();
-      const hasAccess = userBatteries.some(
-        battery => battery.batteryId === batteryId && battery.isActive
-      );
-
-      log('Battery access validation result:', { batteryId, hasAccess });
-      return hasAccess;
-    } catch (error) {
-      logError('Battery access validation failed:', error);
+// Validate if user has access to a specific battery
+export const validateBatteryAccess = async (batteryId) => {
+  try {
+    log('Validating battery access for:', batteryId);
+    
+    const batteriesResult = await getUserBatteries();
+    if (!batteriesResult.success) {
       return false;
     }
+
+    const hasAccess = batteriesResult.data.some(
+      battery => battery.batteryId === batteryId && battery.isActive
+    );
+    
+    log('Battery access validation result:', hasAccess);
+    return hasAccess;
+  } catch (error) {
+    logError('Error validating battery access:', error);
+    return false;
   }
+};
 
-  // Utility method to get available battery IDs for dropdowns
-  async getAvailableBatteryIds() {
-    log('Getting available battery IDs for user...');
+// Format battery for dropdown display
+export const formatBatteryForDisplay = (battery) => {
+  const displayName = battery.nickname 
+    ? `${battery.nickname} (${battery.batteryId})`
+    : `${battery.serialNumber} - ${battery.batteryId}`;
+    
+  return {
+    value: battery.batteryId,
+    label: displayName,
+    ...battery
+  };
+};
 
-    try {
-      const userBatteries = await this.getUserBatteries();
-      const activeBatteries = userBatteries.filter(battery => battery.isActive);
-      const batteryIds = activeBatteries.map(battery => battery.batteryId);
-      
-      log('Available battery IDs:', batteryIds);
-      return batteryIds;
-    } catch (error) {
-      logError('Failed to get available battery IDs:', error);
-      return [];
-    }
+// Test AWS connection
+export const testAWSConnection = async () => {
+  try {
+    const client = await getLambdaClient();
+    log("AWS SDK initialized successfully with Amplify credentials");
+    return true;
+  } catch (error) {
+    logError("AWS SDK initialization failed:", error);
+    return false;
   }
+};
 
-  // Utility method to get battery options for dropdowns
-  async getBatteryOptions() {
-    log('Getting battery options for dropdowns...');
+// Export logging control
+export const setBatteryLogging = (enabled) => {
+  // Note: This will only affect new calls, not existing closures
+  global.BATTERY_LOGGING_ENABLED = enabled;
+};
 
-    try {
-      const userBatteries = await this.getUserBatteries();
-      const activeBatteries = userBatteries.filter(battery => battery.isActive);
-      
-      const options = activeBatteries.map(battery => ({
-        value: battery.batteryId,
-        label: battery.nickname || battery.batteryId,
-        serialNumber: battery.serialNumber,
-        registrationId: battery.registrationId,
-        registrationDate: battery.registrationDate,
-      }));
-
-      log('Battery options:', options);
-      return options;
-    } catch (error) {
-      logError('Failed to get battery options:', error);
-      return [];
-    }
-  }
-}
-
-// Create singleton instance
-const batteryRegistrationService = new BatteryRegistrationService();
-
-export default batteryRegistrationService;
-
-// Named exports for specific functions
-export const {
-  registerBattery: registerBatteryService,
-  getUserBatteries: getUserBatteriesService,
-  deactivateBattery: deactivateBatteryService,
-  validateBatteryAccess: validateBatteryAccessService,
-  getAvailableBatteryIds: getAvailableBatteryIdsService,
-  getBatteryOptions: getBatteryOptionsService,
-} = batteryRegistrationService;
+// Export getCurrentUserId for use in other components
+export { getCurrentUserId };

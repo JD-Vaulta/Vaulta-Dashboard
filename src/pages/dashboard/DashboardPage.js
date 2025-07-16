@@ -8,6 +8,10 @@ import CellView from "./components/views/CellView.js";
 import InstallationView from "./components/views/InstallationView.js";
 import LoadingSpinner from "./components/shared/LoadingSpinner.js";
 
+// Battery Registration Integration
+import BatterySelector from "../../components/common/BatterySelector.js";
+import { useBatteryContext } from "../../contexts/BatteryContext.js";
+
 import AWS from "aws-sdk";
 import { fetchAuthSession } from "aws-amplify/auth";
 import awsconfig from "../../aws-exports.js";
@@ -15,17 +19,18 @@ import { getLatestReading } from "../../queries.js";
 
 const DashboardPage = ({
   bmsData,
-  activeSection = "system", // Removed "initial" prefix, directly use the prop
+  activeSection = "system",
 }) => {
   const [bmsState, setBmsState] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState(new Date());
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [selectedBattery, setSelectedBattery] = useState("BAT-0x400");
-  // Removed local activeSection state - now using prop directly
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const metricsContainerRef = useRef(null);
+
+  // Battery Registration Integration
+  const { getCurrentBatteryTagId, selectedBattery, hasRegisteredBatteries } = useBatteryContext();
 
   // Check for mobile on resize
   useEffect(() => {
@@ -38,19 +43,19 @@ const DashboardPage = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Battery options for dropdown
-  const batteryOptions = [
-    { value: "BAT-0x400", label: "BAT-0x400" },
-    { value: "BAT-0x440", label: "BAT-0x440" },
-    { value: "BAT-0x480", label: "BAT-0x480" },
-    { value: "Pack-Controller", label: "Pack-Controller" },
-  ];
-
   const refreshIntervalRef = useRef(null);
 
-  // Function to fetch the latest data
+  // Function to fetch the latest data - updated to use battery context
   const fetchLatestData = useCallback(async () => {
     try {
+      // Get current battery from context
+      const currentBatteryTagId = getCurrentBatteryTagId();
+      
+      if (!currentBatteryTagId) {
+        console.warn("No battery selected");
+        return;
+      }
+
       if (!isInitialLoad) {
         setIsUpdating(true);
       }
@@ -64,7 +69,8 @@ const DashboardPage = ({
         credentials,
       });
 
-      const latestReading = await getLatestReading(docClient, selectedBattery);
+      console.log("Fetching data for battery:", currentBatteryTagId);
+      const latestReading = await getLatestReading(docClient, currentBatteryTagId);
 
       if (latestReading) {
         console.log("Latest reading received:", latestReading);
@@ -98,15 +104,7 @@ const DashboardPage = ({
         setIsInitialLoad(false);
       }
     }
-  }, [isInitialLoad, selectedBattery]);
-
-  // Handle battery selection change
-  const handleBatteryChange = (event) => {
-    const newBattery = event.target.value;
-    setSelectedBattery(newBattery);
-    setIsInitialLoad(true);
-    setBmsState(null);
-  };
+  }, [isInitialLoad, getCurrentBatteryTagId]);
 
   // Set initial data from props
   useEffect(() => {
@@ -125,20 +123,26 @@ const DashboardPage = ({
       setIsInitialLoad(false);
     } else {
       console.log("No initial data in props, fetching...");
-      fetchLatestData();
+      // Only fetch if we have a registered battery
+      if (hasRegisteredBatteries) {
+        fetchLatestData();
+      }
     }
-  }, [bmsData, fetchLatestData]);
+  }, [bmsData, fetchLatestData, hasRegisteredBatteries]);
 
   // Fetch data when battery selection changes
   useEffect(() => {
-    if (selectedBattery && isInitialLoad) {
+    if (selectedBattery && isInitialLoad && hasRegisteredBatteries) {
+      console.log("Battery changed to:", selectedBattery.batteryId);
+      setIsInitialLoad(true);
+      setBmsState(null);
       fetchLatestData();
     }
-  }, [selectedBattery, isInitialLoad, fetchLatestData]);
+  }, [selectedBattery, fetchLatestData, hasRegisteredBatteries]);
 
   // Set up auto-refresh interval
   useEffect(() => {
-    if (!isInitialLoad) {
+    if (!isInitialLoad && hasRegisteredBatteries) {
       refreshIntervalRef.current = setInterval(() => {
         fetchLatestData();
       }, 20000); // 20 seconds
@@ -149,7 +153,7 @@ const DashboardPage = ({
         clearInterval(refreshIntervalRef.current);
       }
     };
-  }, [fetchLatestData, isInitialLoad]);
+  }, [fetchLatestData, isInitialLoad, hasRegisteredBatteries]);
 
   const roundValue = (value) => {
     if (value === null || value === undefined || value === "NaN") {
@@ -206,8 +210,8 @@ const DashboardPage = ({
     },
   ];
 
-  // Show loading spinner during initial load
-  if (isInitialLoad || !bmsState) {
+  // Show loading spinner during initial load or if no batteries registered
+  if (isInitialLoad || !bmsState || !hasRegisteredBatteries) {
     return <LoadingSpinner />;
   }
 
@@ -282,56 +286,6 @@ const DashboardPage = ({
     </button>
   );
 
-  // Battery selector dropdown component
-  const BatterySelector = () => (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-      {!isMobile && (
-        <label
-          htmlFor="battery-select"
-          style={{
-            color: colors.textDark,
-            fontWeight: "500",
-            fontSize: "14px",
-          }}
-        >
-          Battery:
-        </label>
-      )}
-      <select
-        id="battery-select"
-        value={selectedBattery}
-        onChange={handleBatteryChange}
-        style={{
-          padding: "8px 12px",
-          backgroundColor: colors.white,
-          color: colors.textDark,
-          border: `1px solid ${colors.lightGrey}`,
-          borderRadius: "4px",
-          cursor: "pointer",
-          fontWeight: "400",
-          fontSize: "14px",
-          minWidth: "140px",
-          outline: "none",
-        }}
-        onFocus={(e) => {
-          e.target.style.borderColor = colors.primary;
-        }}
-        onBlur={(e) => {
-          e.target.style.borderColor = colors.lightGrey;
-        }}
-      >
-        {batteryOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-
-  // Navigation component - REMOVED since it's now in TopBanner
-  // The navigation buttons are now handled by getSectionControls() in App.js
-
   const renderContent = () => {
     switch (activeSection) {
       case "system":
@@ -383,7 +337,7 @@ const DashboardPage = ({
       >
       <ToastContainer />
 
-      {/* Secondary Header Bar - Only for battery selector */}
+      {/* Secondary Header Bar - Updated with Battery Registration selector */}
       <div
         style={{
           backgroundColor: colors.white,
@@ -393,7 +347,7 @@ const DashboardPage = ({
           justifyContent: "space-between",
           alignItems: "center",
           borderBottom: `1px solid ${colors.lightGrey}`,
-          minHeight: "50px", // Reduced height since navigation moved to TopBanner
+          minHeight: "50px",
         }}
       >
         <h2
@@ -408,7 +362,32 @@ const DashboardPage = ({
           {activeSection === "details" && "Detailed View"}
           {activeSection === "installations" && "Installations"}
         </h2>
-        <BatterySelector />
+        
+        {/* Replaced local BatterySelector with registration system BatterySelector */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {!isMobile && (
+            <label
+              style={{
+                color: colors.textDark,
+                fontWeight: "500",
+                fontSize: "14px",
+              }}
+            >
+              Battery:
+            </label>
+          )}
+          <BatterySelector
+            style={{
+              backgroundColor: colors.white,
+              color: colors.textDark,
+              border: `1px solid ${colors.lightGrey}`,
+              fontSize: "14px",
+              minWidth: "140px",
+            }}
+            showAddButton={false}
+            compact={true}
+          />
+        </div>
       </div>
 
       {/* Main Content */}
