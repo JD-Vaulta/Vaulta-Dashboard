@@ -1,23 +1,9 @@
+// Updated NodeTables.js with responsive design and professional color scheme
 import React, { useState } from "react";
 import PropTypes from "prop-types";
 
-const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
+const NodeTables = ({ nodeData, condensed = false, colors = {}, isMobile }) => {
   const [activeView, setActiveView] = useState("voltages");
-
-  // Define colors using provided colors object or fallback to defaults
-  const tableColors = {
-    textDark: colors.textDark || "#333333",
-    textLight: colors.textLight || "#666666",
-    primary: colors.primary || "#818181",
-    secondary: colors.secondary || "#c0c0c0",
-    accentGreen: colors.accentGreen || "#8BC34A",
-    accentRed: colors.accentRed || "#FF0000",
-    accentOrange: colors.accentOrange || "#FF9800",
-    accentYellow: colors.accentYellow || "#FFC107",
-    accentBlue: colors.accentBlue || "#2196F3",
-    highlight: colors.highlight || "#FFC107",
-    background: colors.background || "rgba(192, 192, 192, 0.1)",
-  };
 
   // Voltage thresholds
   const VOLTAGE_THRESHOLDS = {
@@ -41,42 +27,42 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
     if (dataType === "voltages") {
       if (value >= VOLTAGE_THRESHOLDS.CRITICAL_OVER) {
         status = "CRITICAL HIGH";
-        statusColor = tableColors.accentRed;
+        statusColor = colors.error;
         statusIcon = "⚠️";
       } else if (value >= VOLTAGE_THRESHOLDS.THRESHOLD_OVER) {
         status = "HIGH";
-        statusColor = tableColors.accentOrange;
+        statusColor = colors.warning;
         statusIcon = "⬆️";
       } else if (value >= VOLTAGE_THRESHOLDS.BALANCE) {
         status = "BALANCE";
-        statusColor = tableColors.accentBlue;
+        statusColor = colors.primary;
         statusIcon = "⚖️";
       } else if (value <= VOLTAGE_THRESHOLDS.CRITICAL_UNDER) {
         status = "CRITICAL LOW";
-        statusColor = tableColors.accentRed;
+        statusColor = colors.error;
         statusIcon = "⚠️";
       } else if (value <= VOLTAGE_THRESHOLDS.THRESHOLD_UNDER) {
         status = "LOW";
-        statusColor = tableColors.accentOrange;
+        statusColor = colors.warning;
         statusIcon = "⬇️";
       } else {
         status = "OK";
-        statusColor = tableColors.accentGreen;
+        statusColor = colors.success;
         statusIcon = "✓";
       }
     } else {
       // temperatures
       if (value >= TEMP_THRESHOLDS.OVER) {
         status = "OVER TEMP";
-        statusColor = tableColors.accentRed;
+        statusColor = colors.error;
         statusIcon = "🔥";
       } else if (value < TEMP_THRESHOLDS.UNDER) {
         status = "UNDER TEMP";
-        statusColor = tableColors.accentRed;
+        statusColor = colors.error;
         statusIcon = "❄️";
       } else {
         status = "OK";
-        statusColor = tableColors.accentGreen;
+        statusColor = colors.success;
         statusIcon = "✓";
       }
     }
@@ -85,21 +71,20 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
       <div
         style={{
           backgroundColor: statusColor,
-          color: "white",
-          padding: condensed ? "2px 5px" : "5px 10px",
+          color: colors.white,
+          padding: isMobile ? "2px 4px" : "4px 8px",
           borderRadius: "4px",
-          fontSize: condensed ? "0.7rem" : "0.8rem",
+          fontSize: isMobile ? "9px" : "11px",
           fontWeight: "600",
           display: "inline-flex",
           alignItems: "center",
-          gap: "4px",
+          gap: "2px",
           textAlign: "center",
-          minWidth: condensed ? "80px" : "120px",
-          justifyContent: "center",
+          whiteSpace: "nowrap",
         }}
       >
-        <span style={{ fontSize: condensed ? "0.8rem" : "1rem" }}>{statusIcon}</span>
-        <span>{status}</span>
+        <span style={{ fontSize: isMobile ? "10px" : "12px" }}>{statusIcon}</span>
+        {!isMobile && <span>{status}</span>}
       </div>
     );
   };
@@ -107,17 +92,52 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
   // Render threshold legend
   const renderThresholdLegend = (dataType) => {
     const legends = dataType === "voltages" ? [
-      { label: "Critical High", threshold: `≥${VOLTAGE_THRESHOLDS.CRITICAL_OVER}V`, color: tableColors.accentRed, icon: "⚠️" },
-      { label: "High", threshold: `≥${VOLTAGE_THRESHOLDS.THRESHOLD_OVER}V`, color: tableColors.accentOrange, icon: "⬆️" },
-      { label: "Balance", threshold: `≥${VOLTAGE_THRESHOLDS.BALANCE}V`, color: tableColors.accentBlue, icon: "⚖️" },
-      { label: "OK", threshold: `${VOLTAGE_THRESHOLDS.THRESHOLD_UNDER}V-${VOLTAGE_THRESHOLDS.THRESHOLD_OVER}V`, color: tableColors.accentGreen, icon: "✓" },
-      { label: "Low", threshold: `≤${VOLTAGE_THRESHOLDS.THRESHOLD_UNDER}V`, color: tableColors.accentOrange, icon: "⬇️" },
-      { label: "Critical Low", threshold: `≤${VOLTAGE_THRESHOLDS.CRITICAL_UNDER}V`, color: tableColors.accentRed, icon: "⚠️" },
+      { label: "Critical High", threshold: `≥${VOLTAGE_THRESHOLDS.CRITICAL_OVER}V`, color: colors.error, icon: "⚠️" },
+      { label: "High", threshold: `≥${VOLTAGE_THRESHOLDS.THRESHOLD_OVER}V`, color: colors.warning, icon: "⬆️" },
+      { label: "Balance", threshold: `≥${VOLTAGE_THRESHOLDS.BALANCE}V`, color: colors.primary, icon: "⚖️" },
+      { label: "OK", threshold: `${VOLTAGE_THRESHOLDS.THRESHOLD_UNDER}V-${VOLTAGE_THRESHOLDS.THRESHOLD_OVER}V`, color: colors.success, icon: "✓" },
+      { label: "Low", threshold: `≤${VOLTAGE_THRESHOLDS.THRESHOLD_UNDER}V`, color: colors.warning, icon: "⬇️" },
+      { label: "Critical Low", threshold: `≤${VOLTAGE_THRESHOLDS.CRITICAL_UNDER}V`, color: colors.error, icon: "⚠️" },
     ] : [
-      { label: "Over Temp", threshold: `≥${TEMP_THRESHOLDS.OVER}°C`, color: tableColors.accentRed, icon: "🔥" },
-      { label: "OK", threshold: `${TEMP_THRESHOLDS.UNDER}°C-${TEMP_THRESHOLDS.OVER}°C`, color: tableColors.accentGreen, icon: "✓" },
-      { label: "Under Temp", threshold: `<${TEMP_THRESHOLDS.UNDER}°C`, color: tableColors.accentRed, icon: "❄️" },
+      { label: "Over Temp", threshold: `≥${TEMP_THRESHOLDS.OVER}°C`, color: colors.error, icon: "🔥" },
+      { label: "OK", threshold: `${TEMP_THRESHOLDS.UNDER}°C-${TEMP_THRESHOLDS.OVER}°C`, color: colors.success, icon: "✓" },
+      { label: "Under Temp", threshold: `<${TEMP_THRESHOLDS.UNDER}°C`, color: colors.error, icon: "❄️" },
     ];
+
+    if (isMobile) {
+      // Show only a condensed legend on mobile
+      return (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "4px",
+            marginBottom: "8px",
+            padding: "6px",
+            backgroundColor: colors.background,
+            borderRadius: "4px",
+            fontSize: "9px",
+            justifyContent: "center",
+          }}
+        >
+          {legends.filter((_, index) => index % 2 === 0).map((legend, index) => (
+            <div
+              key={index}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "2px",
+              }}
+            >
+              <span style={{ fontSize: "10px" }}>{legend.icon}</span>
+              <span style={{ color: colors.textDark }}>
+                {legend.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
 
     return (
       <div
@@ -125,11 +145,11 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
           display: "flex",
           flexWrap: "wrap",
           gap: "8px",
-          marginBottom: "10px",
-          padding: "10px",
-          backgroundColor: tableColors.background,
+          marginBottom: "12px",
+          padding: "8px",
+          backgroundColor: colors.background,
           borderRadius: "4px",
-          fontSize: condensed ? "0.7rem" : "0.8rem",
+          fontSize: "11px",
         }}
       >
         {legends.map((legend, index) => (
@@ -143,20 +163,20 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
           >
             <div
               style={{
-                width: "16px",
-                height: "16px",
+                width: "14px",
+                height: "14px",
                 backgroundColor: legend.color,
-                borderRadius: "3px",
+                borderRadius: "2px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "white",
-                fontSize: "10px",
+                color: colors.white,
+                fontSize: "8px",
               }}
             >
               {legend.icon}
             </div>
-            <span style={{ color: tableColors.textDark }}>
+            <span style={{ color: colors.textDark }}>
               {legend.label}: {legend.threshold}
             </span>
           </div>
@@ -171,7 +191,6 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
     
     // Get the number of cells to display
     const numCells = node.data.numcells || dataToRender.length;
-    console.log(`${node.node} - Number of cells to display: ${numCells}`);
     
     // Limit data to the specified number of cells
     const limitedData = dataToRender.slice(0, numCells);
@@ -179,25 +198,28 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
     return (
       <div
         style={{
-          background: "#fff",
-          borderRadius: "8px",
-          padding: condensed ? "10px" : "15px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+          background: colors.white,
+          borderRadius: "6px",
+          padding: isMobile ? "8px" : "12px",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
           flex: 1,
-          margin: "0 5px",
+          margin: "0 4px",
           height: "100%",
-          overflow: "auto",
-          border: `1px solid ${tableColors.secondary}`,
+          maxHeight: isMobile ? "400px" : "450px",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          border: `1px solid ${colors.lightGrey}`,
         }}
       >
         <h3
           style={{
             fontWeight: "600",
-            marginBottom: "10px",
-            color: tableColors.textDark,
-            fontSize: condensed ? "0.95rem" : "1.1rem",
-            borderBottom: `1px solid ${tableColors.secondary}`,
-            paddingBottom: "5px",
+            marginBottom: "8px",
+            color: colors.textDark,
+            fontSize: isMobile ? "12px" : "14px",
+            paddingBottom: "8px",
+            borderBottom: `1px solid ${colors.lightGrey}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -207,7 +229,7 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
             {node.node}{" "}
             {dataType === "voltages" ? "Cell Voltages" : "Temperatures"}
           </span>
-          <span style={{ fontSize: condensed ? "0.8rem" : "0.9rem", color: tableColors.textLight }}>
+          <span style={{ fontSize: isMobile ? "10px" : "12px", color: colors.textLight }}>
             ({limitedData.length} {dataType === "voltages" ? "cells" : "sensors"})
           </span>
         </h3>
@@ -217,8 +239,10 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
         
         <div
           style={{
-            height: condensed ? "auto" : "calc(100% - 100px)",
+            flex: 1,
             overflow: "auto",
+            minHeight: 0,
+            maxHeight: "300px",
           }}
         >
           <table
@@ -226,38 +250,50 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
               width: "100%",
               textAlign: "left",
               borderCollapse: "collapse",
-              fontSize: condensed ? "0.8rem" : "0.9rem",
+              fontSize: isMobile ? "11px" : "12px",
             }}
           >
             <thead>
-              <tr style={{ backgroundColor: tableColors.background }}>
+              <tr style={{ backgroundColor: colors.background }}>
                 <th
                   style={{
-                    padding: condensed ? "5px 8px" : "8px 12px",
-                    border: `1px solid ${tableColors.secondary}`,
-                    color: tableColors.textDark,
-                    width: "20%",
+                    padding: isMobile ? "6px" : "8px",
+                    border: `1px solid ${colors.lightGrey}`,
+                    color: colors.textDark,
+                    fontWeight: "600",
+                    position: "sticky",
+                    top: 0,
+                    backgroundColor: colors.background,
+                    fontSize: isMobile ? "10px" : "inherit",
                   }}
                 >
                   {dataType === "voltages" ? "Cell" : "Sensor"}
                 </th>
                 <th
                   style={{
-                    padding: condensed ? "5px 8px" : "8px 12px",
-                    border: `1px solid ${tableColors.secondary}`,
-                    color: tableColors.textDark,
-                    width: "30%",
+                    padding: isMobile ? "6px" : "8px",
+                    border: `1px solid ${colors.lightGrey}`,
+                    color: colors.textDark,
+                    fontWeight: "600",
+                    position: "sticky",
+                    top: 0,
+                    backgroundColor: colors.background,
+                    fontSize: isMobile ? "10px" : "inherit",
                   }}
                 >
                   {dataType === "voltages" ? "Voltage (V)" : "Temperature (°C)"}
                 </th>
                 <th
                   style={{
-                    padding: condensed ? "5px 8px" : "8px 12px",
-                    border: `1px solid ${tableColors.secondary}`,
-                    color: tableColors.textDark,
+                    padding: isMobile ? "6px" : "8px",
+                    border: `1px solid ${colors.lightGrey}`,
+                    color: colors.textDark,
                     textAlign: "center",
-                    width: "50%",
+                    fontWeight: "600",
+                    position: "sticky",
+                    top: 0,
+                    backgroundColor: colors.background,
+                    fontSize: isMobile ? "10px" : "inherit",
                   }}
                 >
                   Status
@@ -278,33 +314,35 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
                   <tr 
                     key={i}
                     style={{
-                      backgroundColor: isCritical ? "rgba(255, 0, 0, 0.1)" : isWarning ? "rgba(255, 152, 0, 0.1)" : "transparent",
+                      backgroundColor: isCritical ? colors.error + "10" : isWarning ? colors.warning + "10" : "transparent",
                     }}
                   >
                     <td
                       style={{
-                        padding: condensed ? "4px 8px" : "8px 12px",
-                        border: `1px solid ${tableColors.secondary}`,
-                        color: tableColors.textDark,
+                        padding: isMobile ? "4px 6px" : "6px 8px",
+                        border: `1px solid ${colors.lightGrey}`,
+                        color: colors.textDark,
                         fontWeight: isWarning ? "600" : "normal",
+                        fontSize: isMobile ? "10px" : "inherit",
                       }}
                     >
                       {dataType === "voltages" ? `Cell ${i}` : `Sensor ${i}`}
                     </td>
                     <td
                       style={{
-                        padding: condensed ? "4px 8px" : "8px 12px",
-                        border: `1px solid ${tableColors.secondary}`,
-                        color: tableColors.textDark,
+                        padding: isMobile ? "4px 6px" : "6px 8px",
+                        border: `1px solid ${colors.lightGrey}`,
+                        color: colors.textDark,
                         fontWeight: isWarning ? "600" : "normal",
+                        fontSize: isMobile ? "10px" : "inherit",
                       }}
                     >
                       {value}
                     </td>
                     <td
                       style={{
-                        padding: condensed ? "4px 8px" : "8px 12px",
-                        border: `1px solid ${tableColors.secondary}`,
+                        padding: isMobile ? "4px 6px" : "6px 8px",
+                        border: `1px solid ${colors.lightGrey}`,
                         textAlign: "center",
                       }}
                     >
@@ -326,24 +364,25 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
         style={{
           display: "flex",
           justifyContent: "center",
-          marginBottom: condensed ? "10px" : "15px",
+          marginBottom: "12px",
+          gap: "8px",
         }}
       >
         <button
           onClick={() => setActiveView("voltages")}
           style={{
-            margin: "0 5px",
-            padding: condensed ? "5px 15px" : "8px 16px",
+            padding: "8px 16px",
             backgroundColor:
-              activeView === "voltages" ? tableColors.accentGreen : "#ffffff",
-            color: activeView === "voltages" ? "#fff" : tableColors.textDark,
-            border: "none",
+              activeView === "voltages" ? colors.primary : colors.white,
+            color: activeView === "voltages" ? colors.white : colors.textDark,
+            border: `1px solid ${
+              activeView === "voltages" ? colors.primary : colors.lightGrey
+            }`,
             borderRadius: "4px",
             cursor: "pointer",
-            fontWeight: "600",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-            fontSize: condensed ? "0.8rem" : "0.9rem",
-            transition: "all 0.3s ease",
+            fontWeight: "500",
+            fontSize: "14px",
+            transition: "all 0.2s ease",
           }}
         >
           Cell Voltages
@@ -351,43 +390,43 @@ const NodeTables = ({ nodeData, condensed = false, colors = {} }) => {
         <button
           onClick={() => setActiveView("temperatures")}
           style={{
-            margin: "0 5px",
-            padding: condensed ? "5px 15px" : "8px 16px",
+            padding: "8px 16px",
             backgroundColor:
-              activeView === "temperatures"
-                ? tableColors.accentGreen
-                : "#ffffff",
-            color:
-              activeView === "temperatures" ? "#fff" : tableColors.textDark,
-            border: "none",
+              activeView === "temperatures" ? colors.primary : colors.white,
+            color: activeView === "temperatures" ? colors.white : colors.textDark,
+            border: `1px solid ${
+              activeView === "temperatures" ? colors.primary : colors.lightGrey
+            }`,
             borderRadius: "4px",
             cursor: "pointer",
-            fontWeight: "600",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-            fontSize: condensed ? "0.8rem" : "0.9rem",
-            transition: "all 0.3s ease",
+            fontWeight: "500",
+            fontSize: "14px",
+            transition: "all 0.2s ease",
           }}
         >
           Temperature Data
         </button>
       </div>
 
-      {/* Tables - Side by Side */}
+      {/* Tables - Responsive Grid */}
       <div
         style={{
-          display: "flex",
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(300px, 1fr))",
+          gap: "8px",
           flex: 1,
-          overflow: "hidden",
-          height: "calc(100% - 50px)",
+          minHeight: 0,
+          maxHeight: "calc(100vh - 200px)",
+          overflow: "auto",
         }}
       >
         {nodeData.map((node, index) => (
           <div
             key={index}
             style={{
-              flex: 1,
-              margin: "0 5px",
-              height: "100%",
+              minHeight: isMobile ? "250px" : "300px",
+              maxHeight: isMobile ? "400px" : "500px",
+              display: "flex",
             }}
           >
             {renderTable(activeView, node)}
@@ -411,6 +450,7 @@ NodeTables.propTypes = {
   ).isRequired,
   condensed: PropTypes.bool,
   colors: PropTypes.object,
+  isMobile: PropTypes.bool,
 };
 
 export default NodeTables;

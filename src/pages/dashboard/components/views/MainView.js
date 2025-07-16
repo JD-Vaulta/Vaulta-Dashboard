@@ -1,5 +1,5 @@
-// This is your DashboardMain.js moved with exact same functionality
-import React from "react";
+// Updated MainView.js with improved responsiveness and professional design
+import React, { useState, useEffect } from "react";
 import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
 import "react-circular-progressbar/dist/styles.css";
 import {
@@ -24,32 +24,61 @@ import BatteryMetrics from "../widgets/BatteryMetrics.js";
 import WeatherCard from "../widgets/WeatherCard.js";
 
 const MainView = ({ bmsState, roundValue, colors, RefreshButton }) => {
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isMobile = windowWidth < 768;
+  const isTablet = windowWidth < 1024;
+
+  // Calculate responsive font sizes and spacing
+  const getResponsiveValue = (min, max, unit = 'px') => {
+    return `clamp(${min}${unit}, ${(min + max) / 2}vw, ${max}${unit})`;
+  };
+
   return (
-    <>
-      {/* Left Section - Combined Battery Status and Performance */}
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: isTablet ? "1fr" : "minmax(280px, 350px) 1fr",
+        gridTemplateRows: isTablet ? "auto auto" : "1fr",
+        gap: getResponsiveValue(8, 16),
+        height: "100%",
+        maxHeight: "calc(100vh - 100px)",
+        minHeight: 0,
+        width: "100%",
+        overflow: "hidden",
+      }}
+    >
+      {/* Left Section - Battery Status and Performance */}
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          width: "30%",
-          minWidth: "300px",
-          marginRight: "10px",
-          gap: "10px",
+          gap: getResponsiveValue(8, 16),
+          minHeight: 0,
+          maxHeight: isTablet ? "auto" : "100%",
+          overflow: "hidden",
         }}
       >
         {/* Battery Status Section */}
         <div
           style={{
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            padding: "15px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-            flex: 1,
-            overflow: "hidden",
+            backgroundColor: colors.white,
+            borderRadius: "6px",
+            padding: getResponsiveValue(12, 16),
+            boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
             display: "flex",
             flexDirection: "column",
-            minHeight: 0,
-            border: `1px solid ${colors.secondary}`,
+            flex: "0 0 auto",
+            height: isTablet ? "auto" : "45%",
+            maxHeight: isTablet ? "none" : "350px",
+            minHeight: isMobile ? "auto" : "200px",
+            overflow: "hidden",
           }}
         >
           <div
@@ -57,14 +86,19 @@ const MainView = ({ bmsState, roundValue, colors, RefreshButton }) => {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: "15px",
+              marginBottom: getResponsiveValue(8, 12),
+              paddingBottom: getResponsiveValue(8, 12),
+              borderBottom: `1px solid ${colors.lightGrey}`,
+              flexWrap: "wrap",
+              gap: "8px",
+              flexShrink: 0,
             }}
           >
             <h2
               style={{
                 color: colors.textDark,
                 fontWeight: "600",
-                fontSize: "1.2rem",
+                fontSize: getResponsiveValue(14, 18),
                 margin: 0,
               }}
             >
@@ -72,18 +106,17 @@ const MainView = ({ bmsState, roundValue, colors, RefreshButton }) => {
             </h2>
             <RefreshButton />
           </div>
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              borderTop: `1px solid ${colors.secondary}`,
-              paddingTop: "15px",
-            }}
-          >
+          <div style={{ 
+            flex: 1, 
+            overflow: "auto", 
+            minHeight: 0,
+            maxHeight: "100%",
+          }}>
             <StatusCards
               bmsState={bmsState}
               roundValue={roundValue}
               colors={colors}
+              isMobile={isMobile}
             />
           </div>
         </div>
@@ -91,93 +124,103 @@ const MainView = ({ bmsState, roundValue, colors, RefreshButton }) => {
         {/* Battery Performance Section */}
         <div
           style={{
-            backgroundColor: "#fff",
-            borderRadius: "12px",
-            padding: "0px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-            flex: 1,
-            minHeight: 0,
+            backgroundColor: colors.white,
+            borderRadius: "6px",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
             display: "flex",
             flexDirection: "column",
-            border: `1px solid ${colors.secondary}`,
+            flex: "1 1 auto",
+            minHeight: isMobile ? "250px" : "200px",
+            maxHeight: isTablet ? "400px" : "400px",
+            overflow: "hidden",
           }}
         >
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <GaugePanel
-              bmsState={bmsState}
-              roundValue={roundValue}
-              colors={colors}
-            />
-          </div>
+          <GaugePanel
+            bmsState={bmsState}
+            roundValue={roundValue}
+            colors={colors}
+            isMobile={isMobile}
+          />
         </div>
       </div>
 
       {/* Right Section - Weather and System Metrics */}
       <div
         style={{
-          flex: 1,
           display: "flex",
           flexDirection: "column",
-          minWidth: 0,
-          gap: "10px",
+          gap: getResponsiveValue(8, 16),
+          minHeight: 0,
+          maxHeight: isTablet ? "auto" : "100%",
+          overflow: "hidden",
         }}
       >
+        {/* Weather and Metrics Container */}
         <div
           style={{
-            display: "flex",
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : isTablet ? "1fr 1fr" : "minmax(250px, 350px) 1fr",
+            gridTemplateRows: isMobile ? "auto auto" : "1fr",
+            gap: getResponsiveValue(8, 16),
             flex: 1,
-            gap: "10px",
             minHeight: 0,
+            maxHeight: "100%",
+            overflow: "hidden",
           }}
         >
           {/* Weather Card */}
-          <div
-            style={{
-              flex: 0.35,
-              minWidth: 0,
-              minHeight: 0,
-            }}
-          >
-            <WeatherCard city="Brisbane" />
+          <div style={{ 
+            minHeight: isMobile ? "300px" : "250px",
+            maxHeight: isTablet ? "400px" : "600px",
+            overflow: "hidden",
+          }}>
+            <WeatherCard city="Brisbane" colors={colors} isMobile={isMobile} />
           </div>
 
           {/* System Metrics */}
           <div
             style={{
-              flex: 0.65,
-              backgroundColor: "#fff",
-              borderRadius: "12px",
-              padding: "15px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+              backgroundColor: colors.white,
+              borderRadius: "6px",
+              padding: getResponsiveValue(12, 16),
+              boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
               display: "flex",
               flexDirection: "column",
-              minHeight: 0,
-              border: `1px solid ${colors.secondary}`,
+              minHeight: isMobile ? "300px" : "250px",
+              maxHeight: isTablet ? "400px" : "600px",
+              overflow: "hidden",
             }}
           >
             <h2
               style={{
                 color: colors.textDark,
-                marginBottom: "15px",
+                marginBottom: getResponsiveValue(8, 12),
                 fontWeight: "600",
-                fontSize: "1.2rem",
-                borderBottom: `1px solid ${colors.secondary}`,
-                paddingBottom: "5px",
+                fontSize: getResponsiveValue(14, 18),
+                paddingBottom: getResponsiveValue(8, 12),
+                borderBottom: `1px solid ${colors.lightGrey}`,
+                flexShrink: 0,
               }}
             >
               System Metrics
             </h2>
-            <div style={{ flex: 1, minHeight: 0 }}>
+            <div style={{ 
+              flex: 1, 
+              overflow: "auto",
+              minHeight: 0,
+              maxHeight: "100%",
+            }}>
               <BatteryMetrics
                 bmsState={bmsState}
                 roundValue={roundValue}
                 colors={colors}
+                isMobile={isMobile}
               />
             </div>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 

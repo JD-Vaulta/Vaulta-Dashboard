@@ -1,8 +1,14 @@
-// components/LoadingSpinner.js
+// Updated LoadingSpinner.js with professional color scheme
 "use client";
 import React from "react";
 
 const LoadingSpinner = () => {
+  const colors = {
+    primary: "#2E7D32",
+    background: "#FAFAFA",
+    lightGrey: "#E0E0E0",
+  };
+
   return (
     <div
       style={{
@@ -11,23 +17,23 @@ const LoadingSpinner = () => {
         justifyContent: "center",
         alignItems: "center",
         height: "100vh",
-        backgroundColor: "#f2f2f2", // OneUI light background
+        backgroundColor: colors.background,
       }}
     >
       <div
         style={{
-          border: "4px solid rgba(18, 89, 195, 0.3)", // OneUI blue border
-          borderTop: "4px solid #1259c3", // OneUI blue top border
+          border: `4px solid ${colors.lightGrey}`,
+          borderTop: `4px solid ${colors.primary}`,
           borderRadius: "50%",
-          width: "50px",
-          height: "50px",
+          width: "48px",
+          height: "48px",
           animation: "spin 1s linear infinite",
           marginBottom: "20px",
         }}
       ></div>
       <p
         style={{
-          color: "#1259c3",
+          color: colors.primary,
           fontWeight: "500",
           fontSize: "16px",
         }}

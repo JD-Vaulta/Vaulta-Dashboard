@@ -9,7 +9,9 @@ import {
 import React, { useState, useEffect } from "react";
 import { Amplify } from "aws-amplify";
 import awsconfig from "./aws-exports.js";
-import AuthWrapper from "./AuthWrapper.js";
+import CustomAuthWrapper from "./CustomAuthWrapper.js";
+import SignInPage from "./pages/auth/SignInPage.js";
+import SignUpPage from "./pages/auth/SignUpPage.js";
 import Dashboard from "./pages/dashboard/DashboardPage.js";
 import UserManagementPage from "./pages/user-management/UserManagementPage.js";
 import DataAnalyticsPage from "./pages/data-analytics/DataAnalyticsPage.js";
@@ -17,20 +19,31 @@ import SystemSettings from "./app/components/SystemSettings.js";
 import EnergyMonitorPage from "./pages/energy-monitor/EnergyMonitorPage.js";
 import MLDashboardPage from "./pages/ml-dashboard/MLDashboardPage.js";
 import DiagnosticsPage from "./pages/diagnostics/DiagnosticsPage.js";
-import WarrantyPage from "./pages/warranty/WarrantyPage.js"; // New component
+import WarrantyPage from "./pages/warranty/WarrantyPage.js";
 import TopBanner from "./app/components/TopBanner.js";
 import LoadingSpinner from "./app/components/LoadingSpinner.js";
 import useDynamoDB from "./useDynamoDB.js";
 import { invokeLambdaFunction } from "./calc/lastmonthdata.js";
 import "@aws-amplify/ui-react/styles.css";
 import { AnimatePresence, motion } from "framer-motion";
-import { fetchAuthSession } from "aws-amplify/auth";
 
 // Add the `region` parameter to the `awsconfig` object
 awsconfig.region = awsconfig.aws_project_region;
 
 // Configure Amplify with the updated `awsconfig`
 Amplify.configure(awsconfig);
+
+// Protected Route Component
+function ProtectedRoute({ children, user }) {
+  const location = useLocation();
+  
+  if (!user) {
+    // Redirect to sign in page but save the attempted location
+    return <Navigate to="/signin" state={{ from: location }} replace />;
+  }
+  
+  return children;
+}
 
 // Main App Component
 function App() {
@@ -87,18 +100,51 @@ function App() {
   // Main App with Auth Wrapper
   return (
     <BrowserRouter>
-      <AuthWrapper>
-        {({ user, navigate }) => (
-          <AppWithAuth
-            user={user}
-            navigate={navigate}
-            bmsData={bmsData}
-            lambdaResponse={lambdaResponse}
-            lastUpdate={lastUpdate}
-            isUpdating={isUpdating}
-          />
+      <CustomAuthWrapper>
+        {({ user, signOut, navigate, checkAuthStatus }) => (
+          <Routes>
+            {/* Public Routes */}
+            <Route
+              path="/signin"
+              element={
+                user ? (
+                  <Navigate to="/dashboard" replace />
+                ) : (
+                  <SignInPage onSignIn={checkAuthStatus} />
+                )
+              }
+            />
+            <Route
+              path="/signup"
+              element={
+                user ? (
+                  <Navigate to="/dashboard" replace />
+                ) : (
+                  <SignUpPage />
+                )
+              }
+            />
+            
+            {/* Protected Routes */}
+            <Route
+              path="/*"
+              element={
+                <ProtectedRoute user={user}>
+                  <AppWithAuth
+                    user={user}
+                    signOut={signOut}
+                    navigate={navigate}
+                    bmsData={bmsData}
+                    lambdaResponse={lambdaResponse}
+                    lastUpdate={lastUpdate}
+                    isUpdating={isUpdating}
+                  />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
         )}
-      </AuthWrapper>
+      </CustomAuthWrapper>
     </BrowserRouter>
   );
 }
@@ -106,6 +152,7 @@ function App() {
 // App with Authentication - this separates the authenticated app from the auth wrapper
 function AppWithAuth({
   user,
+  signOut,
   navigate,
   bmsData,
   lambdaResponse,
@@ -320,22 +367,6 @@ function AppWithAuth({
     }
   };
 
-  // If no user, show login page
-  if (!user) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-        }}
-      >
-        <p>Please sign in to access the dashboard.</p>
-      </div>
-    );
-  }
-
   // Define animation variants for page transitions
   const pageVariants = {
     initial: { opacity: 0, y: 20 },
@@ -349,13 +380,14 @@ function AppWithAuth({
         display: "flex",
         flexDirection: "column",
         height: "100vh",
-        overflow: "hidden",
+        overflow: "auto",
         backgroundColor: "#f2f2f2",
       }}
     >
       {/* Persistent TopBanner that stays during page transitions */}
       <TopBanner
         user={user}
+        signOut={signOut}
         bmsState={bmsData?.lastMinuteData?.[0] || {}}
         lastUpdate={lastUpdate}
         isUpdating={isUpdating}
@@ -369,7 +401,7 @@ function AppWithAuth({
       <div
         style={{
           flex: 1,
-          overflow: "hidden",
+          overflow: "auto",
           padding: "0 10px 10px 10px",
         }}
       >
@@ -479,7 +511,6 @@ function AppWithAuth({
               }
             />
 
-            {/* New routes for diagnostics and warranty */}
             <Route
               path="/diagnostics"
               element={

@@ -1,4 +1,4 @@
-// WeatherCard.jsx
+// Updated WeatherCard.jsx with responsive design and professional color scheme
 import React, { useState, useEffect } from "react";
 import { Line, Bar } from "react-chartjs-2";
 import {
@@ -14,8 +14,6 @@ import {
   Filler,
 } from "chart.js";
 
-// NO NEED TO IMPORT DOTENV - Create React App handles this automatically
-
 // Register ChartJS components
 ChartJS.register(
   CategoryScale,
@@ -29,13 +27,12 @@ ChartJS.register(
   Filler
 );
 
-const WeatherCard = ({ city, containerRef }) => {
+const WeatherCard = ({ city, colors, isMobile, containerRef }) => {
   const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Get API key from environment variable
-  // Must start with REACT_APP_ for Create React App
   const API_KEY = process.env.REACT_APP_OPENWEATHER_API;
 
   // Debug: Check if API key is loaded
@@ -45,19 +42,6 @@ const WeatherCard = ({ city, containerRef }) => {
       console.error("Please add REACT_APP_OPENWEATHER_API to your .env file");
     }
   }, [API_KEY]);
-
-  // Color scheme
-  const colors = {
-    primary: "#818181",
-    secondary: "#c0c0c0",
-    accentGreen: "#4CAF50",
-    accentRed: "#F44336",
-    accentBlue: "#2196F3",
-    background: "rgba(192, 192, 192, 0.1)",
-    textDark: "#333333",
-    textLight: "#555555",
-    highlight: "#FFC107",
-  };
 
   // Function to get weather icon based on condition
   const getWeatherIcon = (condition) => {
@@ -158,17 +142,17 @@ const WeatherCard = ({ city, containerRef }) => {
     return (
       <div
         style={{
-          backgroundColor: "#fff",
-          borderRadius: "12px",
+          backgroundColor: colors.white,
+          borderRadius: "8px",
           padding: "20px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
           height: "100%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <p>Loading weather data...</p>
+        <p style={{ color: colors.textLight }}>Loading weather data...</p>
       </div>
     );
   }
@@ -178,10 +162,10 @@ const WeatherCard = ({ city, containerRef }) => {
     return (
       <div
         style={{
-          backgroundColor: "#fff",
-          borderRadius: "12px",
+          backgroundColor: colors.white,
+          borderRadius: "8px",
           padding: "20px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
           height: "100%",
           display: "flex",
           flexDirection: "column",
@@ -189,11 +173,11 @@ const WeatherCard = ({ city, containerRef }) => {
           justifyContent: "center",
         }}
       >
-        <p style={{ color: colors.accentRed }}>Error: {error}</p>
+        <p style={{ color: colors.error, marginBottom: "16px" }}>Error: {error}</p>
         {!API_KEY && (
-          <div style={{ marginTop: "20px", textAlign: "center" }}>
+          <div style={{ textAlign: "center", fontSize: "14px" }}>
             <p>To fix this:</p>
-            <ol style={{ textAlign: "left" }}>
+            <ol style={{ textAlign: "left", paddingLeft: "20px" }}>
               <li>Create a .env file in your project root</li>
               <li>Add: REACT_APP_OPENWEATHER_API=your-api-key</li>
               <li>Restart your development server</li>
@@ -209,17 +193,17 @@ const WeatherCard = ({ city, containerRef }) => {
     return (
       <div
         style={{
-          backgroundColor: "#fff",
-          borderRadius: "12px",
+          backgroundColor: colors.white,
+          borderRadius: "8px",
           padding: "20px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
           height: "100%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <p>No weather data available</p>
+        <p style={{ color: colors.textLight }}>No weather data available</p>
       </div>
     );
   }
@@ -235,19 +219,18 @@ const WeatherCard = ({ city, containerRef }) => {
         backgroundColor: (context) => {
           const ctx = context.chart.ctx;
           const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-          gradient.addColorStop(0, "rgba(55, 58, 55, 0.3)");
-          gradient.addColorStop(0.5, "rgba(156, 154, 148, 0.3)");
-          gradient.addColorStop(1, "rgba(220, 212, 211, 0.3)");
+          gradient.addColorStop(0, colors.primary + "30");
+          gradient.addColorStop(1, colors.primary + "05");
           return gradient;
         },
-        borderWidth: 3,
+        borderWidth: 2,
         tension: 0.4,
         fill: true,
         pointBackgroundColor: colors.primary,
-        pointBorderColor: "#fff",
+        pointBorderColor: colors.white,
         pointBorderWidth: 2,
-        pointRadius: 5,
-        pointHoverRadius: 7,
+        pointRadius: 3,
+        pointHoverRadius: 5,
       },
     ],
   };
@@ -259,11 +242,11 @@ const WeatherCard = ({ city, containerRef }) => {
       {
         label: "Precipitation (%)",
         data: weatherData.forecast.map((item) => item.precip),
-        backgroundColor: colors.secondary,
-        borderColor: colors.primary,
+        backgroundColor: colors.secondary + "60",
+        borderColor: colors.secondary,
         borderWidth: 1,
-        borderRadius: 6,
-        hoverBackgroundColor: colors.primary,
+        borderRadius: 4,
+        hoverBackgroundColor: colors.secondary + "80",
       },
     ],
   };
@@ -277,21 +260,20 @@ const WeatherCard = ({ city, containerRef }) => {
         display: false,
       },
       tooltip: {
-        backgroundColor: colors.textDark,
+        backgroundColor: colors.white,
+        titleColor: colors.textDark,
+        bodyColor: colors.textDark,
+        borderColor: colors.lightGrey,
+        borderWidth: 1,
         titleFont: {
-          size: 14,
-          weight: "bold",
+          size: 10,
+          weight: "600",
         },
         bodyFont: {
-          size: 12,
+          size: 9,
         },
-        padding: 12,
+        padding: 6,
         usePointStyle: true,
-        callbacks: {
-          label: function (context) {
-            return `${context.dataset.label}: ${context.raw}`;
-          },
-        },
       },
     },
     scales: {
@@ -303,38 +285,47 @@ const WeatherCard = ({ city, containerRef }) => {
         ticks: {
           color: colors.textLight,
           font: {
+            size: 9,
             weight: "500",
           },
+          maxRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 6,
         },
       },
       y: {
         grid: {
-          color: colors.background,
+          color: colors.lightGrey + "50",
           drawBorder: false,
         },
         ticks: {
           color: colors.textLight,
           font: {
+            size: 9,
             weight: "500",
           },
+          maxTicksLimit: 4,
         },
       },
+    },
+    layout: {
+      padding: 0,
     },
   };
 
   return (
     <div
       style={{
-        backgroundColor: "#fff",
-        borderRadius: "12px",
-        padding: "20px",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+        backgroundColor: colors.white,
+        borderRadius: "6px",
+        padding: "clamp(10px, 2vw, 16px)",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
         height: "100%",
+        maxHeight: "600px",
         display: "flex",
         flexDirection: "column",
-        border: `1px solid ${colors.primary}`,
         position: "relative",
-        overflow: "hidden",
+        overflow: "auto",
       }}
     >
       {/* Current Weather Header */}
@@ -343,19 +334,20 @@ const WeatherCard = ({ city, containerRef }) => {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "20px",
-          borderBottom: `1px solid ${colors.secondary}`,
-          paddingBottom: "15px",
+          marginBottom: "clamp(8px, 1.5vw, 16px)",
+          paddingBottom: "clamp(8px, 1.5vw, 12px)",
+          borderBottom: `1px solid ${colors.lightGrey}`,
+          height: "50px",
+          maxHeight: "60px",
         }}
       >
         <div>
           <h2
             style={{
-              fontSize: "1.3rem",
-              fontWeight: "700",
+              fontSize: "clamp(14px, 2.5vw, 18px)",
+              fontWeight: "600",
               color: colors.textDark,
               margin: 0,
-              letterSpacing: "0.5px",
               display: "flex",
               alignItems: "center",
             }}
@@ -364,16 +356,14 @@ const WeatherCard = ({ city, containerRef }) => {
           </h2>
           <p
             style={{
-              fontSize: "0.95rem",
+              fontSize: "clamp(10px, 1.8vw, 12px)",
               color: colors.textLight,
-              margin: "8px 0 0 0",
-              display: "flex",
-              alignItems: "center",
+              margin: "2px 0 0 0",
             }}
           >
             {new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              month: "long",
+              weekday: "short",
+              month: "short",
               day: "numeric",
             })}
           </p>
@@ -386,9 +376,8 @@ const WeatherCard = ({ city, containerRef }) => {
         >
           <span
             style={{
-              fontSize: "2.8rem",
-              marginRight: "12px",
-              color: colors.highlight,
+              fontSize: "clamp(24px, 4vw, 32px)",
+              marginRight: "6px",
             }}
           >
             {weatherData.current.icon}
@@ -396,8 +385,8 @@ const WeatherCard = ({ city, containerRef }) => {
           <div>
             <span
               style={{
-                fontSize: "2rem",
-                fontWeight: "700",
+                fontSize: "clamp(18px, 3vw, 24px)",
+                fontWeight: "600",
                 color: colors.textDark,
               }}
             >
@@ -405,7 +394,7 @@ const WeatherCard = ({ city, containerRef }) => {
             </span>
             <p
               style={{
-                fontSize: "0.95rem",
+                fontSize: "clamp(10px, 1.8vw, 12px)",
                 color: colors.textLight,
                 margin: 0,
                 textAlign: "right",
@@ -423,40 +412,38 @@ const WeatherCard = ({ city, containerRef }) => {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "15px",
-          marginBottom: "20px",
+          gap: "clamp(6px, 1vw, 12px)",
+          marginBottom: "clamp(8px, 1.5vw, 16px)",
+          height: "60px",
+          maxHeight: "70px",
         }}
       >
         <div
           style={{
             backgroundColor: colors.background,
-            borderRadius: "10px",
-            padding: "14px",
+            borderRadius: "4px",
+            padding: "clamp(6px, 1vw, 10px)",
             textAlign: "center",
-            border: `1px solid ${colors.secondary}`,
-            transition: "all 0.3s ease",
+            border: `1px solid ${colors.lightGrey}`,
           }}
         >
           <p
             style={{
-              fontSize: "0.85rem",
+              fontSize: "clamp(9px, 1.5vw, 11px)",
               color: colors.textLight,
-              margin: "0 0 8px 0",
+              margin: "0 0 2px 0",
               fontWeight: "600",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              textTransform: "uppercase",
             }}
           >
             Humidity
           </p>
           <p
             style={{
-              fontSize: "1.4rem",
-              fontWeight: "700",
-              color: colors.textLight,
+              fontSize: "clamp(14px, 2.5vw, 18px)",
+              fontWeight: "600",
+              color: colors.primary,
               margin: 0,
-              textShadow: `0 2px 4px ${colors.secondary}`,
             }}
           >
             {weatherData.current.humidity}%
@@ -465,33 +452,29 @@ const WeatherCard = ({ city, containerRef }) => {
         <div
           style={{
             backgroundColor: colors.background,
-            borderRadius: "10px",
-            padding: "14px",
+            borderRadius: "4px",
+            padding: "clamp(6px, 1vw, 10px)",
             textAlign: "center",
-            border: `1px solid ${colors.secondary}`,
-            transition: "all 0.3s ease",
+            border: `1px solid ${colors.lightGrey}`,
           }}
         >
           <p
             style={{
-              fontSize: "0.85rem",
+              fontSize: "clamp(9px, 1.5vw, 11px)",
               color: colors.textLight,
-              margin: "0 0 8px 0",
+              margin: "0 0 2px 0",
               fontWeight: "600",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              textTransform: "uppercase",
             }}
           >
-            Wind Speed
+            Wind
           </p>
           <p
             style={{
-              fontSize: "1.4rem",
-              fontWeight: "700",
-              color: colors.textLight,
+              fontSize: "clamp(14px, 2.5vw, 18px)",
+              fontWeight: "600",
+              color: colors.primary,
               margin: 0,
-              textShadow: `0 2px 4px ${colors.secondary}`,
             }}
           >
             {weatherData.current.windSpeed} km/h
@@ -503,16 +486,16 @@ const WeatherCard = ({ city, containerRef }) => {
       <div
         style={{
           flex: 1,
-          marginBottom: "20px",
-          minHeight: "180px",
+          marginBottom: "clamp(6px, 1vw, 12px)",
+          minHeight: "80px",
         }}
       >
         <h3
           style={{
-            fontSize: "1rem",
-            fontWeight: "700",
+            fontSize: "clamp(11px, 2vw, 14px)",
+            fontWeight: "600",
             color: colors.textDark,
-            margin: "0 0 12px 0",
+            margin: "0 0 6px 0",
             display: "flex",
             alignItems: "center",
           }}
@@ -520,22 +503,22 @@ const WeatherCard = ({ city, containerRef }) => {
           <span
             style={{
               display: "inline-block",
-              width: "14px",
-              height: "14px",
+              width: "10px",
+              height: "10px",
               backgroundColor: colors.primary,
-              marginRight: "10px",
-              borderRadius: "3px",
+              marginRight: "6px",
+              borderRadius: "2px",
             }}
           ></span>
-          Temperature Forecast
+          Temperature
         </h3>
         <div
           style={{
-            height: "calc(100% - 30px)",
-            padding: "8px",
-            borderRadius: "8px",
-            backgroundColor: "rgba(255,255,255,0.7)",
-            border: `1px solid ${colors.secondary}`,
+            height: "calc(100% - 20px)",
+            padding: "4px",
+            borderRadius: "4px",
+            backgroundColor: colors.background,
+            border: `1px solid ${colors.lightGrey}`,
           }}
         >
           <Line data={tempChartData} options={chartOptions} />
@@ -546,15 +529,15 @@ const WeatherCard = ({ city, containerRef }) => {
       <div
         style={{
           flex: 1,
-          minHeight: "180px",
+          minHeight: "80px",
         }}
       >
         <h3
           style={{
-            fontSize: "1rem",
-            fontWeight: "700",
+            fontSize: "clamp(11px, 2vw, 14px)",
+            fontWeight: "600",
             color: colors.textDark,
-            margin: "0 0 12px 0",
+            margin: "0 0 6px 0",
             display: "flex",
             alignItems: "center",
           }}
@@ -562,22 +545,22 @@ const WeatherCard = ({ city, containerRef }) => {
           <span
             style={{
               display: "inline-block",
-              width: "14px",
-              height: "14px",
-              backgroundColor: colors.primary,
-              marginRight: "10px",
-              borderRadius: "3px",
+              width: "10px",
+              height: "10px",
+              backgroundColor: colors.secondary,
+              marginRight: "6px",
+              borderRadius: "2px",
             }}
           ></span>
-          Precipitation Probability
+          Precipitation
         </h3>
         <div
           style={{
-            height: "calc(100% - 30px)",
-            padding: "8px",
-            borderRadius: "8px",
-            backgroundColor: "rgba(255,255,255,0.7)",
-            border: `1px solid ${colors.secondary}`,
+            height: "calc(100% - 20px)",
+            padding: "4px",
+            borderRadius: "4px",
+            backgroundColor: colors.background,
+            border: `1px solid ${colors.lightGrey}`,
           }}
         >
           <Bar

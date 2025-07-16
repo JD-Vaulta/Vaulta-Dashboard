@@ -1,4 +1,3 @@
-// Updated DashboardPage.js with navigation
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -16,15 +15,28 @@ import { getLatestReading } from "../../queries.js";
 
 const DashboardPage = ({
   bmsData,
-  activeSection: initialActiveSection = "system",
+  activeSection = "system", // Removed "initial" prefix, directly use the prop
 }) => {
   const [bmsState, setBmsState] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState(new Date());
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [selectedBattery, setSelectedBattery] = useState("BAT-0x400");
-  // Add state for controlling the active section
-  const [activeSection, setActiveSection] = useState(initialActiveSection);
+  // Removed local activeSection state - now using prop directly
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const metricsContainerRef = useRef(null);
+
+  // Check for mobile on resize
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Battery options for dropdown
   const batteryOptions = [
@@ -199,17 +211,21 @@ const DashboardPage = ({
     return <LoadingSpinner />;
   }
 
-  // Define colors for consistent styling
+  // Define professional color scheme
   const colors = {
-    primary: "#818181",
-    secondary: "#c0c0c0",
-    accentGreen: "#4CAF50",
-    accentRed: "#F44336",
-    accentBlue: "#2196F3",
-    background: "rgba(192, 192, 192, 0.1)",
-    textDark: "#333333",
-    textLight: "#555555",
-    highlight: "#FFC107",
+    primary: "#2E7D32", // Professional green
+    secondary: "#66BB6A", // Light green
+    accent: "#4CAF50", // Accent green
+    grey: "#757575", // Medium grey
+    lightGrey: "#E0E0E0", // Light grey
+    darkGrey: "#424242", // Dark grey
+    background: "#FAFAFA", // Off-white background
+    white: "#FFFFFF",
+    textDark: "#212121",
+    textLight: "#757575",
+    error: "#D32F2F",
+    warning: "#F57C00",
+    success: "#388E3C",
   };
 
   // Manual refresh button component
@@ -219,16 +235,29 @@ const DashboardPage = ({
       disabled={isUpdating}
       style={{
         padding: "8px 16px",
-        backgroundColor: isUpdating ? "#cccccc" : "#ffffff",
-        color: colors.textDark,
-        border: "none",
-        borderRadius: "5px",
+        backgroundColor: isUpdating ? colors.lightGrey : colors.white,
+        color: isUpdating ? colors.grey : colors.primary,
+        border: `1px solid ${isUpdating ? colors.lightGrey : colors.primary}`,
+        borderRadius: "4px",
         cursor: isUpdating ? "not-allowed" : "pointer",
-        fontWeight: "600",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-        fontSize: "0.85rem",
+        fontWeight: "500",
+        fontSize: "14px",
         display: "flex",
         alignItems: "center",
+        transition: "all 0.2s ease",
+        minWidth: "120px",
+      }}
+      onMouseEnter={(e) => {
+        if (!isUpdating) {
+          e.target.style.backgroundColor = colors.primary;
+          e.target.style.color = colors.white;
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isUpdating) {
+          e.target.style.backgroundColor = colors.white;
+          e.target.style.color = colors.primary;
+        }
       }}
     >
       {isUpdating ? (
@@ -236,9 +265,9 @@ const DashboardPage = ({
           <span
             style={{
               display: "inline-block",
-              width: "12px",
-              height: "12px",
-              border: "2px solid #333",
+              width: "10px",
+              height: "10px",
+              border: `2px solid ${colors.grey}`,
               borderTopColor: "transparent",
               borderRadius: "50%",
               animation: "spin 1s linear infinite",
@@ -255,32 +284,40 @@ const DashboardPage = ({
 
   // Battery selector dropdown component
   const BatterySelector = () => (
-    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-      <label
-        htmlFor="battery-select"
-        style={{
-          color: colors.textDark,
-          fontWeight: "600",
-          fontSize: "0.9rem",
-        }}
-      >
-        Battery:
-      </label>
+    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      {!isMobile && (
+        <label
+          htmlFor="battery-select"
+          style={{
+            color: colors.textDark,
+            fontWeight: "500",
+            fontSize: "14px",
+          }}
+        >
+          Battery:
+        </label>
+      )}
       <select
         id="battery-select"
         value={selectedBattery}
         onChange={handleBatteryChange}
         style={{
-          padding: "6px 12px",
-          backgroundColor: "#ffffff",
+          padding: "8px 12px",
+          backgroundColor: colors.white,
           color: colors.textDark,
-          border: `1px solid ${colors.secondary}`,
-          borderRadius: "5px",
+          border: `1px solid ${colors.lightGrey}`,
+          borderRadius: "4px",
           cursor: "pointer",
-          fontWeight: "500",
-          fontSize: "0.85rem",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-          minWidth: "150px",
+          fontWeight: "400",
+          fontSize: "14px",
+          minWidth: "140px",
+          outline: "none",
+        }}
+        onFocus={(e) => {
+          e.target.style.borderColor = colors.primary;
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = colors.lightGrey;
         }}
       >
         {batteryOptions.map((option) => (
@@ -292,44 +329,8 @@ const DashboardPage = ({
     </div>
   );
 
-  // Navigation component
-  const Navigation = () => {
-    const navItems = [
-      { key: "system", label: "System Overview", icon: "📊" },
-      { key: "tables", label: "Detailed View", icon: "📋" },
-      { key: "installations", label: "Installations", icon: "🏭" },
-    ];
-
-    return (
-      <div style={{ display: "flex", gap: "5px" }}>
-        {navItems.map((item) => (
-          <button
-            key={item.key}
-            onClick={() => setActiveSection(item.key)}
-            style={{
-              padding: "8px 16px",
-              backgroundColor:
-                activeSection === item.key ? colors.accentBlue : "#ffffff",
-              color: activeSection === item.key ? "#fff" : colors.textDark,
-              border: `1px solid ${colors.secondary}`,
-              borderRadius: "5px",
-              cursor: "pointer",
-              fontWeight: "600",
-              fontSize: "0.85rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              transition: "all 0.2s ease",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-            }}
-          >
-            <span>{item.icon}</span>
-            {item.label}
-          </button>
-        ))}
-      </div>
-    );
-  };
+  // Navigation component - REMOVED since it's now in TopBanner
+  // The navigation buttons are now handled by getSectionControls() in App.js
 
   const renderContent = () => {
     switch (activeSection) {
@@ -340,18 +341,21 @@ const DashboardPage = ({
             roundValue={roundValue}
             colors={colors}
             RefreshButton={RefreshButton}
+            isMobile={isMobile}
+            containerRef={metricsContainerRef}
           />
         );
-      case "tables":
+      case "details": // Changed from "tables" to match App.js
         return (
           <CellView
             nodeData={nodeData}
             colors={colors}
             RefreshButton={RefreshButton}
+            isMobile={isMobile}
           />
         );
       case "installations":
-        return <InstallationView />;
+        return <InstallationView colors={colors} isMobile={isMobile} />;
       default:
         return (
           <MainView
@@ -359,49 +363,51 @@ const DashboardPage = ({
             roundValue={roundValue}
             colors={colors}
             RefreshButton={RefreshButton}
+            isMobile={isMobile}
+            containerRef={metricsContainerRef}
           />
         );
     }
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        overflow: "hidden",
-        backgroundColor: "#f2f2f2",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <ToastContainer />
-
-      {/* Header Bar */}
       <div
         style={{
-          backgroundColor: "#fff",
-          padding: "10px 20px",
-          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          minHeight: "100vh",  // Changed from fixed positioning
+          display: "flex",
+          flexDirection: "column",
+          backgroundColor: colors.background,
+          fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          overflow: "hidden",
+        }}
+      >
+      <ToastContainer />
+
+      {/* Secondary Header Bar - Only for battery selector */}
+      <div
+        style={{
+          backgroundColor: colors.white,
+          padding: "12px 20px",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          borderBottom: `1px solid ${colors.secondary}`,
+          borderBottom: `1px solid ${colors.lightGrey}`,
+          minHeight: "50px", // Reduced height since navigation moved to TopBanner
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-          <h1
-            style={{
-              color: colors.textDark,
-              fontSize: "1.5rem",
-              fontWeight: "600",
-              margin: 0,
-            }}
-          >
-            System Overview
-          </h1>
-          <Navigation />
-        </div>
+        <h2
+          style={{
+            color: colors.textDark,
+            fontSize: "18px",
+            fontWeight: "600",
+            margin: 0,
+          }}
+        >
+          {activeSection === "system" && "System Overview"}
+          {activeSection === "details" && "Detailed View"}
+          {activeSection === "installations" && "Installations"}
+        </h2>
         <BatterySelector />
       </div>
 
@@ -409,19 +415,87 @@ const DashboardPage = ({
       <div
         style={{
           flex: 1,
-          display: "flex",
-          overflow: "hidden",
-          padding: "10px",
+          padding: "16px",
+          overflow: "auto",
+          minHeight: 0,
+          WebkitOverflowScrolling: "touch", // Smooth scrolling on iOS
         }}
       >
-        {renderContent()}
+        <div 
+          ref={metricsContainerRef}
+          style={{ 
+            height: "100%",
+            maxHeight: "100%",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {renderContent()}
+        </div>
       </div>
 
-      {/* Add a keyframe animation for the spinner */}
+      {/* Add keyframe animation and global styles */}
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        /* Ensure scrollbars are visible */
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: ${colors.grey} ${colors.lightGrey};
+        }
+        
+        *::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        
+        *::-webkit-scrollbar-track {
+          background: ${colors.lightGrey};
+          border-radius: 4px;
+        }
+        
+        *::-webkit-scrollbar-thumb {
+          background: ${colors.grey};
+          border-radius: 4px;
+        }
+        
+        *::-webkit-scrollbar-thumb:hover {
+          background: ${colors.darkGrey};
+        }
+        
+        /* System metrics scroll behavior */
+        .metrics-container {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(300px, 1fr));
+          grid-template-rows: repeat(2, minmax(200px, 1fr));
+          gap: 16px;
+          padding: 8px;
+          min-height: 420px;
+        }
+        
+        @media (max-width: 1024px) {
+          .metrics-container {
+            grid-template-columns: minmax(300px, 1fr);
+            grid-template-rows: repeat(4, minmax(180px, 1fr));
+          }
+        }
+        
+        @media (max-width: 768px) {
+          .metrics-container {
+            grid-template-columns: minmax(280px, 1fr);
+            grid-template-rows: repeat(4, minmax(160px, 1fr));
+            overflow-x: auto;
+          }
+        }
+        
+        /* Prevent cards from shrinking below minimum */
+        .metric-card {
+          min-width: 280px;
+          min-height: 160px;
         }
       `}</style>
     </div>

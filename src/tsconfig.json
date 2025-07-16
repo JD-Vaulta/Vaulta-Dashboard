@@ -26,7 +26,13 @@
   "next-env.d.ts",
   "**/*.ts",
   "**/*.tsx",
-  ".next/types/**/*.ts"
+  ".next/types/**/*.ts",
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.js",
+    "**/*.jsx",
+    ".next/types/**/*.ts"
 , "app/page.js", "app/components/DataSource.js", "app/components/Dashboard.js", "app/components/CircularGauge.js"]
 ,
   "exclude": ["node_modules"]

@@ -1,20 +1,20 @@
-// This is your DashboardInstallations.js moved with exact same functionality
+// Updated InstallationView.js with responsive design and professional color scheme
 import React from "react";
 
-const InstallationView = () => {
+const InstallationView = ({ colors, isMobile }) => {
   // Helper function to render status indicators
-  const renderStatusIndicator = (status) => {
-    let bgColor = "#8BC34A"; // Default green for OK
+  const renderStatusIndicator = (status, activity) => {
+    let bgColor = colors.success;
     let statusText = "OK";
 
     if (status === "ERROR") {
-      bgColor = "#FF0000";
+      bgColor = colors.error;
       statusText = "ERROR";
-    } else if (status === "Overcharge") {
-      bgColor = "#FF0000";
+    } else if (activity === "Overcharge") {
+      bgColor = colors.error;
       statusText = "Overcharge";
-    } else if (status === "Over-Temp") {
-      bgColor = "#FF0000";
+    } else if (activity === "Over-Temp") {
+      bgColor = colors.error;
       statusText = "Over-Temp";
     }
 
@@ -22,13 +22,13 @@ const InstallationView = () => {
       <div
         style={{
           backgroundColor: bgColor,
-          color: "white",
-          padding: "2px 8px",
-          borderRadius: "2px",
+          color: colors.white,
+          padding: isMobile ? "2px 4px" : "4px 8px",
+          borderRadius: "4px",
           textAlign: "center",
           fontWeight: "600",
-          fontSize: "0.75rem",
-          minWidth: "60px",
+          fontSize: isMobile ? "9px" : "11px",
+          whiteSpace: "nowrap",
           display: "inline-block",
         }}
       >
@@ -134,232 +134,254 @@ const InstallationView = () => {
   return (
     <div
       style={{
-        flex: 1,
-        backgroundColor: "#fff",
-        borderRadius: "2px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+        backgroundColor: colors.white,
+        borderRadius: "8px",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        height: "calc(100vh - 160px)",
+        height: "100%",
+        maxHeight: "calc(100vh - 100px)",
       }}
     >
-      <div style={{ padding: "10px 15px", borderBottom: "1px solid #e0e0e0" }}>
+      <div style={{ 
+        padding: isMobile ? "12px" : "16px", 
+        borderBottom: `1px solid ${colors.lightGrey}`,
+        backgroundColor: colors.white,
+      }}>
         <h2
           style={{
             margin: 0,
-            fontSize: "1rem",
+            fontSize: isMobile ? "16px" : "18px",
             fontWeight: "600",
-            color: "#333333",
+            color: colors.textDark,
           }}
         >
           Installations
         </h2>
       </div>
 
-      <div style={{ flex: 1, overflow: "auto", padding: "10px 15px" }}>
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: "0.85rem",
-          }}
-        >
-          <thead>
-            <tr style={{ backgroundColor: "#f5f5f5" }}>
-              <th
-                style={{
-                  padding: "8px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#333333",
-                  borderBottom: "1px solid #e0e0e0",
-                }}
-              >
-                Name
-              </th>
-              <th
-                style={{
-                  padding: "8px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#333333",
-                  borderBottom: "1px solid #e0e0e0",
-                }}
-              >
-                Location
-              </th>
-              <th
-                style={{
-                  padding: "8px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#333333",
-                  borderBottom: "1px solid #e0e0e0",
-                }}
-              >
-                Status
-              </th>
-              <th
-                style={{
-                  padding: "8px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#333333",
-                  borderBottom: "1px solid #e0e0e0",
-                }}
-              >
-                Activity
-              </th>
-              <th
-                style={{
-                  padding: "8px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#333333",
-                  borderBottom: "1px solid #e0e0e0",
-                }}
-              >
-                Wattage
-              </th>
-              <th
-                style={{
-                  padding: "8px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#333333",
-                  borderBottom: "1px solid #e0e0e0",
-                }}
-              >
-                SOC
-              </th>
-              <th
-                style={{
-                  padding: "8px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#333333",
-                  borderBottom: "1px solid #e0e0e0",
-                }}
-              >
-                Battery Temp
-              </th>
-              <th
-                style={{
-                  padding: "8px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#333333",
-                  borderBottom: "1px solid #e0e0e0",
-                }}
-              >
-                Weather
-              </th>
-              <th
-                style={{
-                  padding: "8px",
-                  textAlign: "left",
-                  fontWeight: "600",
-                  color: "#333333",
-                  borderBottom: "1px solid #e0e0e0",
-                }}
-              >
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {installations.map((installation, index) => (
-              <tr key={index}>
-                <td
-                  style={{ padding: "8px", borderBottom: "1px solid #e0e0e0" }}
-                >
-                  {installation.name}
-                </td>
-                <td
-                  style={{ padding: "8px", borderBottom: "1px solid #e0e0e0" }}
-                >
-                  {installation.location}
-                </td>
-                <td
-                  style={{ padding: "8px", borderBottom: "1px solid #e0e0e0" }}
-                >
-                  {renderStatusIndicator(installation.status)}
-                </td>
-                <td
-                  style={{ padding: "8px", borderBottom: "1px solid #e0e0e0" }}
-                >
-                  {installation.activity}
-                </td>
-                <td
-                  style={{ padding: "8px", borderBottom: "1px solid #e0e0e0" }}
-                >
-                  {installation.wattage}
-                </td>
-                <td
-                  style={{ padding: "8px", borderBottom: "1px solid #e0e0e0" }}
-                >
-                  {installation.soc}
-                </td>
-                <td
-                  style={{ padding: "8px", borderBottom: "1px solid #e0e0e0" }}
-                >
-                  {installation.batteryTemp}
-                </td>
-                <td
-                  style={{ padding: "8px", borderBottom: "1px solid #e0e0e0" }}
-                >
-                  {installation.weather}
-                </td>
-                <td
-                  style={{ padding: "8px", borderBottom: "1px solid #e0e0e0" }}
-                >
-                  <button
+      <div style={{ 
+        flex: 1, 
+        overflow: "auto", 
+        padding: "16px",
+        backgroundColor: colors.background,
+        maxHeight: "calc(100vh - 200px)",
+      }}>
+        <div style={{
+          overflowX: "auto",
+          backgroundColor: colors.white,
+          borderRadius: "6px",
+          border: `1px solid ${colors.lightGrey}`,
+        }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: isMobile ? "11px" : "13px",
+              minWidth: isMobile ? "600px" : "800px",
+            }}
+          >
+            <thead>
+              <tr style={{ backgroundColor: colors.background }}>
+                {[
+                  "Name", "Location", "Status", "Activity", 
+                  "Wattage", "SOC", "Battery Temp", "Weather", "Actions"
+                ].map((header) => (
+                  <th
+                    key={header}
                     style={{
-                      backgroundColor: "#FF0000",
-                      color: "white",
-                      border: "none",
-                      padding: "4px 8px",
-                      borderRadius: "2px",
-                      fontSize: "0.75rem",
-                      cursor: "pointer",
+                      padding: isMobile ? "8px 4px" : "12px 8px",
+                      textAlign: "left",
+                      fontWeight: "600",
+                      color: colors.textDark,
+                      borderBottom: `2px solid ${colors.lightGrey}`,
+                      position: "sticky",
+                      top: 0,
+                      backgroundColor: colors.background,
+                      zIndex: 1,
+                      fontSize: isMobile ? "10px" : "inherit",
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    Details
-                  </button>
-                </td>
+                    {isMobile && header === "Battery Temp" ? "Temp" : header}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {installations.map((installation, index) => (
+                <tr 
+                  key={index}
+                  style={{
+                    backgroundColor: index % 2 === 0 ? colors.white : colors.background,
+                    transition: "background-color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = colors.lightGrey + "30";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 
+                      index % 2 === 0 ? colors.white : colors.background;
+                  }}
+                >
+                  <td
+                    style={{ 
+                      padding: isMobile ? "8px 4px" : "10px 8px", 
+                      borderBottom: `1px solid ${colors.lightGrey}`,
+                      color: colors.textDark,
+                      fontWeight: "500",
+                      fontSize: isMobile ? "10px" : "inherit",
+                    }}
+                  >
+                    {installation.name}
+                  </td>
+                  <td
+                    style={{ 
+                      padding: isMobile ? "8px 4px" : "10px 8px", 
+                      borderBottom: `1px solid ${colors.lightGrey}`,
+                      color: colors.textLight,
+                      fontSize: isMobile ? "10px" : "inherit",
+                    }}
+                  >
+                    {installation.location}
+                  </td>
+                  <td
+                    style={{ 
+                      padding: isMobile ? "8px 4px" : "10px 8px", 
+                      borderBottom: `1px solid ${colors.lightGrey}` 
+                    }}
+                  >
+                    {renderStatusIndicator(installation.status, installation.activity)}
+                  </td>
+                  <td
+                    style={{ 
+                      padding: isMobile ? "8px 4px" : "10px 8px", 
+                      borderBottom: `1px solid ${colors.lightGrey}`,
+                      color: colors.textDark,
+                      fontSize: isMobile ? "10px" : "inherit",
+                    }}
+                  >
+                    {installation.activity}
+                  </td>
+                  <td
+                    style={{ 
+                      padding: isMobile ? "8px 4px" : "10px 8px", 
+                      borderBottom: `1px solid ${colors.lightGrey}`,
+                      color: installation.wattage.startsWith("+") 
+                        ? colors.success 
+                        : installation.wattage.startsWith("-") 
+                        ? colors.warning 
+                        : colors.textDark,
+                      fontWeight: "600",
+                      fontSize: isMobile ? "10px" : "inherit",
+                    }}
+                  >
+                    {installation.wattage}
+                  </td>
+                  <td
+                    style={{ 
+                      padding: isMobile ? "8px 4px" : "10px 8px", 
+                      borderBottom: `1px solid ${colors.lightGrey}`,
+                      color: colors.textDark,
+                      fontWeight: "500",
+                      fontSize: isMobile ? "10px" : "inherit",
+                    }}
+                  >
+                    {installation.soc}
+                  </td>
+                  <td
+                    style={{ 
+                      padding: isMobile ? "8px 4px" : "10px 8px", 
+                      borderBottom: `1px solid ${colors.lightGrey}`,
+                      color: colors.textDark,
+                      fontSize: isMobile ? "10px" : "inherit",
+                    }}
+                  >
+                    {installation.batteryTemp}
+                  </td>
+                  <td
+                    style={{ 
+                      padding: isMobile ? "8px 4px" : "10px 8px", 
+                      borderBottom: `1px solid ${colors.lightGrey}`,
+                      color: colors.textLight,
+                      fontSize: isMobile ? "10px" : "inherit",
+                    }}
+                  >
+                    {installation.weather}
+                  </td>
+                  <td
+                    style={{ 
+                      padding: isMobile ? "8px 4px" : "10px 8px", 
+                      borderBottom: `1px solid ${colors.lightGrey}` 
+                    }}
+                  >
+                    <button
+                      style={{
+                        backgroundColor: colors.primary,
+                        color: colors.white,
+                        border: "none",
+                        padding: isMobile ? "4px 8px" : "6px 12px",
+                        borderRadius: "4px",
+                        fontSize: isMobile ? "10px" : "12px",
+                        cursor: "pointer",
+                        transition: "background-color 0.2s ease",
+                        fontWeight: "500",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = colors.secondary;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = colors.primary;
+                      }}
+                    >
+                      Details
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Footer Stats Bar */}
       <div
         style={{
-          backgroundColor: "#f5f5f5",
-          borderTop: "1px solid #e0e0e0",
-          padding: "8px 15px",
+          backgroundColor: colors.background,
+          borderTop: `1px solid ${colors.lightGrey}`,
+          padding: isMobile ? "8px 12px" : "12px 16px",
           display: "flex",
           justifyContent: "space-between",
-          fontSize: "0.75rem",
-          color: "#666",
+          alignItems: "center",
+          fontSize: isMobile ? "10px" : "12px",
+          color: colors.textLight,
+          flexWrap: "wrap",
+          gap: isMobile ? "8px" : "12px",
         }}
       >
-        <div>Total Installations: {installations.length}</div>
+        <div>Total: {installations.length}</div>
         <div>
-          Error Status:{" "}
-          {installations.filter((i) => i.status === "ERROR").length}
+          Errors:{" "}
+          <span style={{ color: colors.error, fontWeight: "600" }}>
+            {installations.filter((i) => i.status === "ERROR").length}
+          </span>
         </div>
         <div>
           Charging:{" "}
-          {installations.filter((i) => i.activity === "Charging").length}
+          <span style={{ color: colors.success, fontWeight: "600" }}>
+            {installations.filter((i) => i.activity === "Charging").length}
+          </span>
         </div>
-        <div>
+        <div style={{ display: isMobile ? "none" : "block" }}>
           Discharging:{" "}
-          {installations.filter((i) => i.activity === "Discharging").length}
+          <span style={{ color: colors.warning, fontWeight: "600" }}>
+            {installations.filter((i) => i.activity === "Discharging").length}
+          </span>
         </div>
-        <div>Last Update: {new Date().toLocaleTimeString()}</div>
+        <div style={{ display: isMobile ? "none" : "block" }}>
+          Last Update: {new Date().toLocaleTimeString()}
+        </div>
       </div>
     </div>
   );

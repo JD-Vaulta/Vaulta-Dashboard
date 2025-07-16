@@ -1,126 +1,136 @@
 import React from "react";
 
-const CardItem = ({ label, value, icon, color }) => (
-  <div
-    style={{
-      display: "flex",
-      alignItems: "center",
-      border: "1px solid #e8e8e8",
-      borderRadius: "12px",
-      padding: "20px",
-      margin: "5px",
-      backgroundColor: "#ffffff",
-      boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-      flex: "1 1 calc(50% - 10px)",
-      minWidth: "140px",
-      transition: "box-shadow 0.2s ease",
-      height: "90px",
-    }}
-  >
-    {icon && (
-      <div
-        style={{
-          marginRight: "18px",
-          color: color,
-          fontSize: "28px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: "44px",
-          height: "44px",
-          borderRadius: "12px",
-          backgroundColor: `${color}15`, // 10% opacity of the color
-        }}
-      >
-        {icon}
-      </div>
-    )}
-    <div>
-      <div
-        style={{
-          color: "#666666",
-          fontSize: "14px",
-          marginBottom: "6px",
-          fontWeight: "600",
-          letterSpacing: "0.3px",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontWeight: "700",
-          fontSize: "22px",
-          color: "#333333",
-          letterSpacing: "0.5px",
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  </div>
-);
-
-const Cards = ({ bmsState, roundValue, colors = {} }) => {
-  // Use provided colors or fallback to default
-  const cardColors = {
-    primary: colors.primary || "#2a5bd7",
-    secondary: colors.secondary || "#a0a0a0",
-    accentGreen: colors.accentGreen || "#3a9b40",
-    accentRed: colors.accentRed || "#e53935",
-    highlight: colors.highlight || "#ffb300",
+const CardItem = ({ label, value, icon, color, isMobile }) => {
+  const getResponsiveValue = (min, max, unit = 'px') => {
+    return `clamp(${min}${unit}, ${(min + max) / 2}vw, ${max}${unit})`;
   };
 
-  // Organize all card items into a single array to use with flex layout
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        border: `1px solid ${color}20`,
+        borderRadius: "6px",
+        padding: isMobile ? "6px 8px" : getResponsiveValue(8, 12),
+        backgroundColor: `${color}05`,
+        transition: "all 0.2s ease",
+        height: isMobile ? "50px" : "60px",
+        maxHeight: "70px",
+        minWidth: 0,
+        overflow: "hidden",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
+        e.currentTarget.style.transform = "translateY(-1px)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = "none";
+        e.currentTarget.style.transform = "translateY(0)";
+      }}
+    >
+      {icon && (
+        <div
+          style={{
+            marginRight: isMobile ? "6px" : getResponsiveValue(8, 12),
+            color: color,
+            fontSize: isMobile ? "16px" : getResponsiveValue(18, 24),
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: isMobile ? "24px" : getResponsiveValue(28, 36),
+            height: isMobile ? "24px" : getResponsiveValue(28, 36),
+            borderRadius: "6px",
+            backgroundColor: `${color}15`,
+            flexShrink: 0,
+          }}
+        >
+          {icon}
+        </div>
+      )}
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+        <div
+          style={{
+            color: "#757575",
+            fontSize: isMobile ? "9px" : getResponsiveValue(10, 12),
+            marginBottom: "2px",
+            fontWeight: "500",
+            textTransform: "uppercase",
+            letterSpacing: "0.3px",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{
+            fontWeight: "600",
+            fontSize: isMobile ? "13px" : getResponsiveValue(14, 18),
+            color: "#212121",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {value}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Cards = ({ bmsState, roundValue, colors = {}, isMobile }) => {
+  // Card items configuration
   const cardItems = [
-    // State of Charge Items
     {
-      label: "Capacity (Ah)",
-      value: roundValue(bmsState.SOCAh?.N || 0),
-      icon: "",
-      color: cardColors.primary,
+      label: "Capacity",
+      value: `${roundValue(bmsState.SOCAh?.N || 0)} Ah`,
+      icon: "⚡",
+      color: colors.primary,
     },
     {
-      label: "Battery Level",
+      label: "Battery",
       value: `${roundValue(bmsState.SOCPercent?.N || 0)}%`,
-      icon: "",
-      color: cardColors.primary,
-    },
-    // Voltage Readings
-    {
-      label: "Load Voltage",
-      value: `${roundValue(bmsState.TotalLoadVoltage?.N || 0)} V`,
-      icon: "",
-      color: cardColors.primary,
+      icon: "🔋",
+      color: colors.accent,
     },
     {
-      label: "Battery Voltage",
-      value: `${roundValue(bmsState.TotalBattVoltage?.N || 0)} V`,
-      icon: "",
-      color: cardColors.accentGreen,
-    },
-    // Current & Environmental Impact
-    {
-      label: "Total Current",
-      value: `${roundValue(bmsState.TotalCurrent?.N || 0)} A`,
-      icon: "",
-      color: cardColors.highlight,
+      label: "Load V",
+      value: `${roundValue(bmsState.TotalLoadVoltage?.N || 0)}V`,
+      icon: "⚡",
+      color: colors.secondary,
     },
     {
-      label: "Carbon Offset",
-      value: `${roundValue(bmsState.Carbon_Offset_kg?.N || 0)} kg`,
-      icon: "",
-      color: cardColors.accentGreen,
+      label: "Batt V",
+      value: `${roundValue(bmsState.TotalBattVoltage?.N || 0)}V`,
+      icon: "🔌",
+      color: colors.success,
+    },
+    {
+      label: "Current",
+      value: `${roundValue(bmsState.TotalCurrent?.N || 0)}A`,
+      icon: "⚡",
+      color: colors.warning,
+    },
+    {
+      label: "CO₂ Offset",
+      value: `${roundValue(bmsState.Carbon_Offset_kg?.N || 0)}kg`,
+      icon: "🌱",
+      color: colors.success,
     },
   ];
 
   return (
     <div
       style={{
-        display: "flex",
-        flexWrap: "wrap",
-        margin: "-5px", // To compensate for card margins
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)",
+        gap: isMobile ? "6px" : "clamp(6px, 1.5vw, 10px)",
         height: "100%",
+        alignContent: "start",
+        maxHeight: "300px",
         overflow: "auto",
       }}
     >
@@ -131,6 +141,7 @@ const Cards = ({ bmsState, roundValue, colors = {} }) => {
           value={item.value}
           icon={item.icon}
           color={item.color}
+          isMobile={isMobile}
         />
       ))}
     </div>

@@ -25,18 +25,18 @@ ChartJS.register(
   Filler
 );
 
-const BatteryMetricsCarousel = ({ bmsState, roundValue, containerRef }) => {
-  // Using only WeatherCard colors
-  const colors = {
-    primary: "#818181",
-    secondary: "#c0c0c0",
-    accentGreen: "#4CAF50",
-    highlight: "#FFC107",
-    background: "rgba(192, 192, 192, 0.1)",
-    textDark: "#333333",
-    textLight: "#555555",
-  };
-
+const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
+  primary: "#007BFF",
+  success: "#28A745",
+  warning: "#FFC107",
+  error: "#DC3545",
+  accent: "#17A2B8",
+  white: "#FFFFFF",
+  lightGrey: "#E9ECEF",
+  textDark: "#343A40",
+  lightGreen:"#70ab5c",
+  textLight: "#6C757D"
+}, isMobile = false }) => {
   // Generate historical data
   const [history, setHistory] = useState({
     SOCPercent: [82, 83, 85, 87, 89, 90, 92, 91, 90, 89],
@@ -84,12 +84,7 @@ const BatteryMetricsCarousel = ({ bmsState, roundValue, containerRef }) => {
     });
   }, [bmsState]);
 
-  // Calculate color based only on allowed colors
-  const calculateColor = (value, max) => {
-    return "#808080";
-  };
-
-  // Metrics data
+  // Metrics data with enhanced visual properties
   const metricsData = [
     {
       title: "State of Charge",
@@ -97,45 +92,63 @@ const BatteryMetricsCarousel = ({ bmsState, roundValue, containerRef }) => {
       value: parseFloat(bmsState.SOCPercent?.N || 0),
       maxValue: 100,
       unit: "%",
-      additionalInfo: `${roundValue(bmsState.SOCAh?.N || 0)} of ${roundValue(
-        14
-      )} kWh`,
-      status: "Charging • +4000W • 0.4C",
-      statusColor: colors.accentGreen,
+      additionalInfo: `${roundValue(bmsState.SOCAh?.N || 0)} Ah`,
+      status: "Charging",
+      statusColor: colors.success,
+      trend: "+2.5%",
+      gaugeColor: (val) => {
+        if (val > 80) return colors.success;
+        if (val > 50) return colors.warning;
+        return colors.error;
+      },
+      icon: "",
     },
     {
       title: "State of Balance",
       key: "SOB",
-      value: 98,
+      value: parseFloat(bmsState.BalanceSOCPercent?.N || 36),
       maxValue: 100,
       unit: "%",
-      additionalInfo: "MIN 3.35V • AVE 3.35V • MAX 3.37V",
-      status: "All cells within optimal range",
-      statusColor: colors.accentGreen,
+      additionalInfo: "3.35V-3.37V",
+      status: "Balanced",
+      statusColor: colors.success,
+      trend: "+0.2%",
+      gaugeColor: colors.success,
+      icon: "",
     },
     {
-      title: "Battery Temperature",
+      title: "Battery Temp",
       key: "Temperature",
       value: parseFloat(bmsState.MaxCellTemp?.N || 36),
       maxValue: 60,
       unit: "°C",
-      additionalInfo: "MIN 35.5°C • MAX 37.5°C",
-      status: "Temperature within safe range",
-      statusColor: colors.accentGreen,
+      additionalInfo: "35.5°-37.5°",
+      status: "Normal",
+      statusColor: colors.success,
+      trend: "-0.5°",
+      gaugeColor: (val) => {
+        if (val > 50) return colors.error;
+        if (val > 40) return colors.warning;
+        return colors.success;
+      },
+      icon: "",
     },
     {
-      title: "State of Charge",
-      key: "SOC",
-      value: 95,
+      title: "State of Health",
+      key: "SOH",
+      value: parseFloat(bmsState.SOH?.N || 36),
       maxValue: 100,
       unit: "%",
-      additionalInfo: "System Up-time: 99%",
-      status: "Battery in excellent condition",
-      statusColor: colors.accentGreen,
+      additionalInfo: "Uptime 99%",
+      status: "Excellent",
+      statusColor: colors.success,
+      trend: "0%",
+      gaugeColor: colors.success,
+      icon: "",
     },
   ];
 
-  // Chart data creation
+  // Enhanced chart data creation
   const createChartData = (historyData, color) => {
     return {
       labels: timeLabels,
@@ -164,14 +177,7 @@ const BatteryMetricsCarousel = ({ bmsState, roundValue, containerRef }) => {
         display: false,
       },
       tooltip: {
-        enabled: true,
-        backgroundColor: "#fff",
-        titleColor: colors.textDark,
-        bodyColor: colors.textDark,
-        borderColor: colors.secondary,
-        borderWidth: 1,
-        padding: 8,
-        displayColors: false,
+        enabled: false,
       },
     },
     scales: {
@@ -192,141 +198,191 @@ const BatteryMetricsCarousel = ({ bmsState, roundValue, containerRef }) => {
       line: {
         borderWidth: 2,
       },
-      point: {
-        radius: 0,
-        hitRadius: 10,
-        hoverRadius: 4,
-      },
     },
   };
 
-  // Metric card component
+  // Enhanced Metric card component
   const MetricCard = ({ metric }) => {
-    const color = calculateColor(metric.value, metric.maxValue);
+    const color = colors.accent;
     const historyData = history[metric.key] || [];
     const chartData = createChartData(historyData, color);
+    const percentage = (metric.value / metric.maxValue) * 100;
+    const gaugeColor = typeof metric.gaugeColor === 'function' 
+      ? metric.gaugeColor(metric.value) 
+      : metric.gaugeColor;
 
     return (
       <div
         style={{
-          backgroundColor: "#fff",
-          borderRadius: "12px",
-          padding: "15px",
+          backgroundColor: colors.white,
+          borderRadius: "10px",
+          padding: isMobile ? "12px" : "16px",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          border: `1px solid ${colors.secondary}`,
+          border: `1px solid ${colors.lightGrey}`,
           transition: "all 0.3s ease",
-          height: "75%",
-          transform: "scale(1.3)",
-          transformOrigin: "center",
-          margin: "12%",
+          height: "100%",
           position: "relative",
           overflow: "hidden",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
+          e.currentTarget.style.borderColor = colors.primary;
+          e.currentTarget.style.transform = "translateY(-2px)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.05)";
+          e.currentTarget.style.borderColor = colors.lightGrey;
+          e.currentTarget.style.transform = "translateY(0)";
         }}
       >
-        <h3
-          style={{
-            fontSize: "1.1rem",
-            marginBottom: "4px",
-            textAlign: "center",
-            color: colors.textDark,
-            fontWeight: "600",
-            position: "relative",
-            zIndex: "2",
-          }}
-        >
-          {metric.title}
-        </h3>
-
-        <div
-          style={{
-            width: "80%",
-            maxWidth: "120px",
-            margin: "0 auto 8px auto",
-            position: "relative",
-            zIndex: "2",
-          }}
-        >
-          <CircularProgressbar
-            value={metric.value}
-            text={`${roundValue(metric.value)}${metric.unit}`}
-            styles={buildStyles({
-              textSize: "22px",
-              pathColor: color,
-              textColor: colors.textDark,
-              trailColor: colors.background,
-              pathTransitionDuration: 0.5,
-            })}
-          />
+        {/* Header with icon and title */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: "12px",
+        }}>
+          <div style={{
+            fontSize: isMobile ? "20px" : "24px",
+            marginRight: "8px",
+          }}>
+            {metric.icon}
+          </div>
+          <h4
+            style={{
+              fontSize: isMobile ? "14px" : "16px",
+              fontWeight: "600",
+              color: colors.textDark,
+              margin: 0,
+            }}
+          >
+            {metric.title}
+          </h4>
         </div>
 
-        <div
-          style={{
-            fontSize: "0.9rem",
-            color: colors.textLight,
-            textAlign: "center",
-            marginBottom: "5px",
-            fontWeight: "500",
-            position: "relative",
-            zIndex: "2",
-          }}
-        >
-          {metric.additionalInfo}
-        </div>
+        {/* Main content - Gauge and info */}
+        <div style={{
+          display: "flex",
+          flex: 1,
+          gap: "12px",
+          minHeight: 0,
+        }}>
+          {/* Gauge section */}
+          <div style={{
+            flex: "0 0 auto",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            width: isMobile ? "100px" : "121px",
+          }}>
+            <div style={{
+              width: "100%",
+              height: isMobile ? "80px" : "100px",
+              position: "relative",
+            }}>
+              <CircularProgressbar
+                value={metric.value}
+                maxValue={metric.maxValue}
+                text={`${Math.round(metric.value)}${metric.unit}`}
+                strokeWidth={18}
+                styles={buildStyles({
+                  textSize: isMobile ? "20px" : "20px",
+                  pathColor: "#70ab5c",
+                  textColor: colors.textDark,
+                  trailColor: colors.white,
+                  pathTransitionDuration: 0.5,
+                  strokeLinecap: 'butt',
+                  text: {
+                    fontWeight: 'bold',
+                    dominantBaseline: 'middle',
+                    textAnchor: 'middle',
+                  },
+                })}
+              />
+            </div>
+          </div>
 
-        <div
-          style={{
-            fontSize: "0.85rem",
-            color: metric.statusColor,
-            fontWeight: "bold",
-            textAlign: "center",
-            position: "relative",
-            zIndex: "2",
-          }}
-        >
-          {metric.status}
-        </div>
+          {/* Info section */}
+          <div style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            minWidth: 0,
+          }}>
+            {/* Additional info */}
+            <div style={{
+              fontSize: isMobile ? "12px" : "14px",
+              color: colors.textLight,
+              marginBottom: "8px",
+            }}>
+              {metric.additionalInfo}
+            </div>
 
-        {/* Background chart */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: "0",
-            left: "0",
-            right: "0",
-            height: "40%",
-            opacity: 0.5,
-            zIndex: "1",
-            padding: "8px",
-          }}
-        >
-          <Line
-            data={chartData}
-            options={chartOptions}
-            style={{ width: "100%", height: "100%" }}
-          />
+            {/* Status and trend */}
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "4px",
+            }}>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}>
+                <span
+                  style={{
+                    fontSize: isMobile ? "10px" : "12px",
+                    color: metric.statusColor,
+                    fontWeight: "600",
+                    padding: "2px 8px",
+                    backgroundColor: `${metric.statusColor}15`,
+                    borderRadius: "12px",
+                  }}
+                >
+                  {metric.status}
+                </span>
+                <span
+                  style={{
+                    fontSize: isMobile ? "10px" : "12px",
+                    color: metric.trend.startsWith("+") ? colors.success : colors.error,
+                    fontWeight: "600",
+                  }}
+                >
+                  {metric.trend}
+                </span>
+              </div>
+
+              {/* Mini chart */}
+              <div style={{
+                height: "40px",
+                width: "100%",
+                position: "relative",
+              }}>
+                <Line
+                  data={chartData}
+                  options={chartOptions}
+                  style={{ width: "100%", height: "100%" }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
   };
 
   return (
-    <div
-      style={{
-        height: "100%",
-        display: "grid",
-        gridTemplateColumns: "repeat(2, 1fr)",
-        gridTemplateRows: "repeat(2, 1fr)",
-        gap: "5px",
-        padding: "5px",
-        backgroundColor: colors.background,
-        borderRadius: "12px",
-        border: `1px solid ${colors.secondary}`,
-      }}
-    >
+    <div style={{
+      height: "100%",
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)",
+      gridTemplateRows: isMobile ? "repeat(4, 1fr)" : "repeat(2, 1fr)",
+      gap: isMobile ? "12px" : "16px",
+      padding: isMobile ? "8px" : "12px",
+    }}>
       {metricsData.map((metric, index) => (
         <MetricCard key={index} metric={metric} />
       ))}
@@ -337,7 +393,8 @@ const BatteryMetricsCarousel = ({ bmsState, roundValue, containerRef }) => {
 BatteryMetricsCarousel.propTypes = {
   bmsState: PropTypes.object.isRequired,
   roundValue: PropTypes.func.isRequired,
-  containerRef: PropTypes.object,
+  colors: PropTypes.object.isRequired,
+  isMobile: PropTypes.bool,
 };
 
 export default BatteryMetricsCarousel;
