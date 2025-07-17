@@ -6,12 +6,15 @@ import { useBatteryContext } from "../../contexts/BatteryContext.js";
 
 const TopBanner = ({
   bmsState,
+  packControllerState,
   children,
   lastUpdate,
   isUpdating,
   user,
   navigate,
-  timestamp, // New prop for data timestamp
+  timestamp,
+  dataType = "battery", // New prop to specify data type
+  onDataTypeChange, // Callback for data type changes
 }) => {
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -32,23 +35,29 @@ const TopBanner = ({
     return date.toLocaleString();
   };
 
+  // Get current state based on data type
+  const currentState = dataType === "packcontroller" ? packControllerState : bmsState;
+  const deviceId = dataType === "packcontroller" 
+    ? currentState?.DeviceId?.N || "N/A"
+    : currentState?.DeviceId?.N || "N/A";
+  const tagId = dataType === "packcontroller"
+    ? currentState?.TagID || "N/A"
+    : currentState?.TagID || "N/A";
+
   // Get user email
   useEffect(() => {
     const getUserEmail = async () => {
       try {
-        // First try: Get email from user attributes (most direct way)
         if (user && user.attributes && user.attributes.email) {
           setUserEmail(user.attributes.email);
           return;
         }
 
-        // Second try: Check if username is an email
         if (user && user.username && user.username.includes("@")) {
           setUserEmail(user.username);
           return;
         }
 
-        // Third try: Use fetchUserAttributes from Amplify
         try {
           const { fetchUserAttributes } = await import("aws-amplify/auth");
           const userAttributes = await fetchUserAttributes();
@@ -61,7 +70,6 @@ const TopBanner = ({
           console.log("Could not get email from fetchUserAttributes:", error);
         }
 
-        // Fallback: Just use username if we can't find the email
         setUserEmail(user?.username || "User");
       } catch (error) {
         console.error("Error getting user email:", error);
@@ -97,17 +105,22 @@ const TopBanner = ({
     }
   };
 
+  // Handle data type change
+  const handleDataTypeChange = (newDataType) => {
+    if (onDataTypeChange) {
+      onDataTypeChange(newDataType);
+    }
+  };
+
   // Menu items for main navigation
   const menuItems = [
     { label: "Dashboard", path: "/dashboard" },
     { label: "User Management", path: "/user-management" },
     { label: "Data Analytics", path: "/data-analytics" },
     { label: "ML Dashboard", path: "/ml-dashboard" },
-    // { label: "System Settings", path: "/system-settings" },
     { label: "Energy Monitor", path: "/energy-monitor" },
     { label: "Diagnostics", path: "/diagnostics" },
     { label: "Warranty", path: "/warranty" },
-    // Add Battery Management menu item
     { label: "Battery Management", path: "/battery-management" },
   ];
 
@@ -174,7 +187,9 @@ const TopBanner = ({
               margin: 0,
             }}
           >
-            Battery Management Dashboard
+            {dataType === "packcontroller" 
+              ? "Pack Controller Dashboard" 
+              : "Battery Management Dashboard"}
           </h1>
           <p
             style={{
@@ -183,8 +198,7 @@ const TopBanner = ({
               color: "#666",
             }}
           >
-            Device: {bmsState?.DeviceId?.N || "N/A"} • TagID:{" "}
-            {bmsState?.TagID || "N/A"} • Data Time:{" "}
+            Device: {deviceId} • TagID: {tagId} • Data Time:{" "}
             {formatDataTimestamp(timestamp)} • Last Update:{" "}
             {formatTime(lastUpdate)}
             {isUpdating && " (Updating...)"}
@@ -219,24 +233,24 @@ const TopBanner = ({
           <div
             style={{
               padding: "8px 12px",
-              backgroundColor: "rgba(129, 129, 129, 0.1)", // Using gray color
+              backgroundColor: "rgba(129, 129, 129, 0.1)",
               borderRadius: "20px",
-              color: "#818181", // Gray text color
+              color: "#818181",
               fontSize: "0.9rem",
               fontWeight: "500",
               display: "flex",
               alignItems: "center",
               gap: "5px",
-              maxWidth: "300px", // Ensure it doesn't push other elements too far
-              overflow: "hidden", // In case email is really long
-              textOverflow: "ellipsis", // Shows ellipsis if it overflows
-              whiteSpace: "nowrap", // Prevents wrapping
+              maxWidth: "300px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
-            title={userEmail} // Show full email on hover
+            title={userEmail}
           >
             <span
               style={{
-                backgroundColor: "#818181", // Gray badge color
+                backgroundColor: "#818181",
                 color: "white",
                 borderRadius: "50%",
                 width: "24px",
@@ -245,7 +259,7 @@ const TopBanner = ({
                 justifyContent: "center",
                 alignItems: "center",
                 fontSize: "0.8rem",
-                flexShrink: 0, // Prevent badge from shrinking
+                flexShrink: 0,
               }}
             >
               @
@@ -255,7 +269,7 @@ const TopBanner = ({
         </div>
       </div>
 
-      {/* Battery Selector Section - Only show if user has registered batteries */}
+      {/* Data Type and Battery Selector Section */}
       {hasRegisteredBatteries && (
         <div
           style={{
@@ -267,30 +281,92 @@ const TopBanner = ({
             borderBottom: "1px solid #e6e6e6",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span
-              style={{
-                color: "#666",
-                fontWeight: "600",
-                fontSize: "0.9rem",
-              }}
-            >
-              Active Battery:
-            </span>
-            <BatterySelector
-              style={{
-                backgroundColor: "white",
-                border: "1px solid #ddd",
-                fontSize: "0.9rem",
-                padding: "6px 10px",
-              }}
-              showAddButton={false}
-              compact={true}
-            />
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            {/* Data Type Selector */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span
+                style={{
+                  color: "#666",
+                  fontWeight: "600",
+                  fontSize: "0.9rem",
+                }}
+              >
+                Data Type:
+              </span>
+              <select
+                value={dataType}
+                onChange={(e) => handleDataTypeChange(e.target.value)}
+                style={{
+                  backgroundColor: "white",
+                  border: "1px solid #ddd",
+                  borderRadius: "5px",
+                  fontSize: "0.9rem",
+                  padding: "6px 10px",
+                  cursor: "pointer",
+                  fontWeight: "500",
+                }}
+              >
+                <option value="battery">Battery Data</option>
+                <option value="packcontroller">Pack Controller</option>
+              </select>
+            </div>
+
+            {/* Battery Selector - Only show for battery data type */}
+            {dataType === "battery" && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span
+                  style={{
+                    color: "#666",
+                    fontWeight: "600",
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  Active Battery:
+                </span>
+                <BatterySelector
+                  style={{
+                    backgroundColor: "white",
+                    border: "1px solid #ddd",
+                    fontSize: "0.9rem",
+                    padding: "6px 10px",
+                  }}
+                  showAddButton={false}
+                  compact={true}
+                />
+              </div>
+            )}
+
+            {/* Pack Controller Info - Show for pack controller data type */}
+            {dataType === "packcontroller" && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span
+                  style={{
+                    color: "#666",
+                    fontWeight: "600",
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  Pack Controller:
+                </span>
+                <div
+                  style={{
+                    backgroundColor: "white",
+                    border: "1px solid #ddd",
+                    borderRadius: "5px",
+                    fontSize: "0.9rem",
+                    padding: "6px 10px",
+                    fontWeight: "500",
+                    color: "#333",
+                  }}
+                >
+                  {tagId}
+                </div>
+              </div>
+            )}
           </div>
           
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            {selectedBattery && (
+            {dataType === "battery" && selectedBattery && (
               <div
                 style={{
                   display: "flex",
@@ -314,6 +390,31 @@ const TopBanner = ({
                   }}
                 >
                   {batteryCount} registered
+                </span>
+              </div>
+            )}
+
+            {dataType === "packcontroller" && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  color: "#666",
+                  fontSize: "0.85rem",
+                }}
+              >
+                <span
+                  style={{
+                    backgroundColor: "#FF9800",
+                    color: "white",
+                    padding: "2px 6px",
+                    borderRadius: "10px",
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
+                  }}
+                >
+                  Pack Controller Active
                 </span>
               </div>
             )}
@@ -352,7 +453,6 @@ const TopBanner = ({
       >
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           {menuItems.map((item, index) => {
-            // Special styling for Battery Management button
             const isBatteryManagement = item.path === "/battery-management";
             const isActiveItem = isActive(item.path);
             

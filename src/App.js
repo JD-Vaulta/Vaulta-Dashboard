@@ -31,6 +31,11 @@ import BatteryProtectedRoute from "./components/auth/BatteryProtectedRoute.js";
 import BatteryRegistrationPage from "./pages/battery-registration/BatteryRegistrationPage.js";
 import BatteryManagementPage from "./pages/battery-registration/BatteryManagementPage.js";
 
+// PackController Data Imports
+import AWS from "aws-sdk";
+import { fetchAuthSession } from "aws-amplify/auth";
+import { getLatestPackControllerReading } from "./queries.js";
+
 import "@aws-amplify/ui-react/styles.css";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -172,6 +177,12 @@ function AppWithAuth({
 }) {
   const location = useLocation();
   const [activeSection, setActiveSection] = useState({});
+  
+  // PackController Integration States
+  const [dataType, setDataType] = useState("battery"); // "battery" or "packcontroller"
+  const [packControllerState, setPackControllerState] = useState(null);
+  const [packControllerLoading, setPackControllerLoading] = useState(false);
+  const [packControllerLastUpdate, setPackControllerLastUpdate] = useState(new Date());
 
   // Define the default section for each page
   useEffect(() => {
@@ -179,7 +190,11 @@ function AppWithAuth({
     // Set default section when path changes
     switch (path) {
       case "/dashboard":
-        setActiveSection({ dashboard: "system" });
+        if (dataType === "packcontroller") {
+          setActiveSection({ dashboard: "overview" });
+        } else {
+          setActiveSection({ dashboard: "system" });
+        }
         break;
       case "/data-analytics":
         setActiveSection({ analytics: "overview" });
@@ -192,7 +207,87 @@ function AppWithAuth({
         // Keep current section or set a default
         break;
     }
-  }, [location.pathname]);
+  }, [location.pathname, dataType]);
+
+  // Fetch PackController data when data type changes
+  useEffect(() => {
+    const fetchPackControllerData = async () => {
+      if (dataType !== "packcontroller") return;
+
+      try {
+        setPackControllerLoading(true);
+        
+        const session = await fetchAuthSession();
+        const credentials = session.credentials;
+
+        const docClient = new AWS.DynamoDB.DocumentClient({
+          apiVersion: "2012-08-10",
+          region: awsconfig.region,
+          credentials,
+        });
+
+        const deviceId = "PACK-CONTROLLER"; // Use the actual device ID from your data
+        const latestReading = await getLatestPackControllerReading(docClient, deviceId);
+
+        if (latestReading) {
+          console.log("Latest PackController reading received:", latestReading);
+          setPackControllerState(latestReading);
+          setPackControllerLastUpdate(new Date());
+        } else {
+          console.warn("No PackController data available");
+        }
+      } catch (error) {
+        console.error("Error fetching PackController data:", error);
+      } finally {
+        setPackControllerLoading(false);
+      }
+    };
+
+    fetchPackControllerData();
+  }, [dataType]);
+
+  // Auto-refresh PackController data
+  useEffect(() => {
+    if (dataType !== "packcontroller") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const session = await fetchAuthSession();
+        const credentials = session.credentials;
+
+        const docClient = new AWS.DynamoDB.DocumentClient({
+          apiVersion: "2012-08-10",
+          region: awsconfig.region,
+          credentials,
+        });
+
+        const deviceId = "PACK-CONTROLLER";
+        const latestReading = await getLatestPackControllerReading(docClient, deviceId);
+
+        if (latestReading) {
+          setPackControllerState(latestReading);
+          setPackControllerLastUpdate(new Date());
+        }
+      } catch (error) {
+        console.error("Error auto-refreshing PackController data:", error);
+      }
+    }, 20000); // 20 seconds
+
+    return () => clearInterval(interval);
+  }, [dataType]);
+
+  // Handle data type change
+  const handleDataTypeChange = (newDataType) => {
+    console.log("Data type changed to:", newDataType);
+    setDataType(newDataType);
+    
+    // Reset section to appropriate default for the data type
+    if (newDataType === "packcontroller") {
+      setActiveSection({ dashboard: "overview" });
+    } else {
+      setActiveSection({ dashboard: "system" });
+    }
+  };
 
   // Get the current page from location
   const getCurrentPage = () => {
@@ -216,48 +311,132 @@ function AppWithAuth({
     // Return different section controls based on current page
     switch (currentPage) {
       case "dashboard":
-        return (
-          <div style={{ display: "flex", gap: "10px" }}>
-            <button
-              onClick={() => setActiveSection({ dashboard: "system" })}
-              style={{
-                margin: "0 5px",
-                padding: "8px 16px",
-                backgroundColor:
-                  activeSection.dashboard === "system" ? "#4CAF50" : "#ffffff",
-                color:
-                  activeSection.dashboard === "system" ? "#fff" : "#333333",
-                border: "none",
-                borderRadius: "5px",
-                cursor: "pointer",
-                fontWeight: "600",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                fontSize: "0.85rem",
-              }}
-            >
-              System Overview
-            </button>
-            <button
-              onClick={() => setActiveSection({ dashboard: "details" })}
-              style={{
-                margin: "0 5px",
-                padding: "8px 16px",
-                backgroundColor:
-                  activeSection.dashboard === "details" ? "#4CAF50" : "#ffffff",
-                color:
-                  activeSection.dashboard === "details" ? "#fff" : "#333333",
-                border: "none",
-                borderRadius: "5px",
-                cursor: "pointer",
-                fontWeight: "600",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                fontSize: "0.85rem",
-              }}
-            >
-              Detailed Data
-            </button>
-          </div>
-        );
+        if (dataType === "packcontroller") {
+          return (
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => setActiveSection({ dashboard: "overview" })}
+                style={{
+                  margin: "0 5px",
+                  padding: "8px 16px",
+                  backgroundColor:
+                    activeSection.dashboard === "overview" ? "#4CAF50" : "#ffffff",
+                  color:
+                    activeSection.dashboard === "overview" ? "#fff" : "#333333",
+                  border: "none",
+                  borderRadius: "5px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <span>📊</span>
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveSection({ dashboard: "alarms" })}
+                style={{
+                  margin: "0 5px",
+                  padding: "8px 16px",
+                  backgroundColor:
+                    activeSection.dashboard === "alarms" ? "#4CAF50" : "#ffffff",
+                  color:
+                    activeSection.dashboard === "alarms" ? "#fff" : "#333333",
+                  border: "none",
+                  borderRadius: "5px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <span>🚨</span>
+                Alarm History
+              </button>
+            </div>
+          );
+        } else {
+          return (
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => setActiveSection({ dashboard: "system" })}
+                style={{
+                  margin: "0 5px",
+                  padding: "8px 16px",
+                  backgroundColor:
+                    activeSection.dashboard === "system" ? "#4CAF50" : "#ffffff",
+                  color:
+                    activeSection.dashboard === "system" ? "#fff" : "#333333",
+                  border: "none",
+                  borderRadius: "5px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <span>⚙️</span>
+                System Overview
+              </button>
+              <button
+                onClick={() => setActiveSection({ dashboard: "details" })}
+                style={{
+                  margin: "0 5px",
+                  padding: "8px 16px",
+                  backgroundColor:
+                    activeSection.dashboard === "details" ? "#4CAF50" : "#ffffff",
+                  color:
+                    activeSection.dashboard === "details" ? "#fff" : "#333333",
+                  border: "none",
+                  borderRadius: "5px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <span>📋</span>
+                Detailed Data
+              </button>
+              <button
+                onClick={() => setActiveSection({ dashboard: "installations" })}
+                style={{
+                  margin: "0 5px",
+                  padding: "8px 16px",
+                  backgroundColor:
+                    activeSection.dashboard === "installations" ? "#4CAF50" : "#ffffff",
+                  color:
+                    activeSection.dashboard === "installations" ? "#fff" : "#333333",
+                  border: "none",
+                  borderRadius: "5px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  fontSize: "0.85rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <span>🏢</span>
+                Installations
+              </button>
+            </div>
+          );
+        }
       case "energy":
         return (
           <div style={{ display: "flex", gap: "10px" }}>
@@ -379,6 +558,43 @@ function AppWithAuth({
     }
   };
 
+  // Get current timestamp for data display
+  const getCurrentTimestamp = () => {
+    if (dataType === "packcontroller") {
+      if (packControllerState?.Timestamp?.N) {
+        return parseInt(packControllerState.Timestamp.N);
+      }
+      if (packControllerState?.Timestamp) {
+        return parseInt(packControllerState.Timestamp);
+      }
+    } else {
+      if (bmsData?.lastMinuteData?.[0]?.Timestamp?.N) {
+        return parseInt(bmsData.lastMinuteData[0].Timestamp.N);
+      }
+      if (bmsData?.lastMinuteData?.[0]?.Timestamp) {
+        return parseInt(bmsData.lastMinuteData[0].Timestamp);
+      }
+    }
+    return Math.floor(Date.now() / 1000);
+  };
+
+  // Get current update time and loading state
+  const getCurrentUpdateInfo = () => {
+    if (dataType === "packcontroller") {
+      return {
+        lastUpdate: packControllerLastUpdate,
+        isUpdating: packControllerLoading
+      };
+    } else {
+      return {
+        lastUpdate: lastUpdate,
+        isUpdating: isUpdating
+      };
+    }
+  };
+
+  const updateInfo = getCurrentUpdateInfo();
+
   // Define animation variants for page transitions
   const pageVariants = {
     initial: { opacity: 0, y: 20 },
@@ -401,10 +617,13 @@ function AppWithAuth({
         user={user}
         signOut={signOut}
         bmsState={bmsData?.lastMinuteData?.[0] || {}}
-        lastUpdate={lastUpdate}
-        isUpdating={isUpdating}
+        packControllerState={packControllerState || {}}
+        lastUpdate={updateInfo.lastUpdate}
+        isUpdating={updateInfo.isUpdating}
         navigate={navigate}
-        timestamp={bmsData?.lastMinuteData?.[0]?.Timestamp?.N} // Unix timestamp from your data
+        timestamp={getCurrentTimestamp()}
+        dataType={dataType}
+        onDataTypeChange={handleDataTypeChange}
       >
         {getSectionControls()}
       </TopBanner>
@@ -452,7 +671,7 @@ function AppWithAuth({
               }
             />
 
-            {/* Existing Routes */}
+            {/* Dashboard Route with PackController Support */}
             <Route
               path="/dashboard"
               element={
@@ -465,7 +684,9 @@ function AppWithAuth({
                 >
                   <Dashboard
                     bmsData={bmsData}
-                    activeSection={activeSection.dashboard || "system"}
+                    activeSection={activeSection.dashboard || (dataType === "packcontroller" ? "overview" : "system")}
+                    dataType={dataType}
+                    packControllerState={packControllerState}
                   />
                 </motion.div>
               }

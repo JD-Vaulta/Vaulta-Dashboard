@@ -8,6 +8,14 @@ import CellView from "./components/views/CellView.js";
 import InstallationView from "./components/views/InstallationView.js";
 import LoadingSpinner from "./components/shared/LoadingSpinner.js";
 
+// Pack Controller Components
+import PackControllerView from "./components/views/PackControllerView.js";
+import PackControllerStatusCards from "./components/widgets/PackControllerStatusCards.js";
+import PackControllerGauges from "./components/widgets/PackControllerGauges.js";
+import PackControllerAlarms from "./components/widgets/PackControllerAlarms.js";
+import PackControllerSystemMetrics from "./components/widgets/PackControllerSystemMetrics.js";
+import PackControllerAlarmHistory from "./components/widgets/PackControllerAlarmHistory.js";
+
 // Battery Registration Integration
 import BatterySelector from "../../components/common/BatterySelector.js";
 import { useBatteryContext } from "../../contexts/BatteryContext.js";
@@ -15,13 +23,15 @@ import { useBatteryContext } from "../../contexts/BatteryContext.js";
 import AWS from "aws-sdk";
 import { fetchAuthSession } from "aws-amplify/auth";
 import awsconfig from "../../aws-exports.js";
-import { getLatestReading } from "../../queries.js";
+import { getLatestReading, getLatestPackControllerReading } from "../../queries.js";
 
 const DashboardPage = ({
   bmsData,
   activeSection = "system",
 }) => {
   const [bmsState, setBmsState] = useState(null);
+  const [packControllerState, setPackControllerState] = useState(null);
+  const [dataType, setDataType] = useState("battery"); // "battery" or "packcontroller"
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState(new Date());
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -45,17 +55,9 @@ const DashboardPage = ({
 
   const refreshIntervalRef = useRef(null);
 
-  // Function to fetch the latest data - updated to use battery context
+  // Function to fetch the latest data based on data type
   const fetchLatestData = useCallback(async () => {
     try {
-      // Get current battery from context
-      const currentBatteryTagId = getCurrentBatteryTagId();
-      
-      if (!currentBatteryTagId) {
-        console.warn("No battery selected");
-        return;
-      }
-
       if (!isInitialLoad) {
         setIsUpdating(true);
       }
@@ -69,24 +71,55 @@ const DashboardPage = ({
         credentials,
       });
 
-      console.log("Fetching data for battery:", currentBatteryTagId);
-      const latestReading = await getLatestReading(docClient, currentBatteryTagId);
+      if (dataType === "packcontroller") {
+        // Fetch PackController data
+        console.log("Fetching PackController data");
+        const deviceId = "PACK-CONTROLLER"; // Use the actual device ID from your data
+        const latestReading = await getLatestPackControllerReading(docClient, deviceId);
 
-      if (latestReading) {
-        console.log("Latest reading received:", latestReading);
-        setBmsState(latestReading);
-        setLastUpdateTime(new Date());
+        if (latestReading) {
+          console.log("Latest PackController reading received:", latestReading);
+          setPackControllerState(latestReading);
+          setLastUpdateTime(new Date());
+        } else {
+          console.warn("No PackController data available");
+          if (isInitialLoad) {
+            toast.error(
+              "No pack controller data available. Please check the connection.",
+              {
+                autoClose: 5000,
+                toastId: "no-packcontroller-data-error",
+              }
+            );
+          }
+        }
       } else {
-        console.warn("No new data available");
+        // Fetch Battery data
+        const currentBatteryTagId = getCurrentBatteryTagId();
+        
+        if (!currentBatteryTagId) {
+          console.warn("No battery selected");
+          return;
+        }
 
-        if (isInitialLoad) {
-          toast.error(
-            "No battery data available. Please check the connection.",
-            {
-              autoClose: 5000,
-              toastId: "no-data-error",
-            }
-          );
+        console.log("Fetching data for battery:", currentBatteryTagId);
+        const latestReading = await getLatestReading(docClient, currentBatteryTagId);
+
+        if (latestReading) {
+          console.log("Latest reading received:", latestReading);
+          setBmsState(latestReading);
+          setLastUpdateTime(new Date());
+        } else {
+          console.warn("No new data available");
+          if (isInitialLoad) {
+            toast.error(
+              "No battery data available. Please check the connection.",
+              {
+                autoClose: 5000,
+                toastId: "no-data-error",
+              }
+            );
+          }
         }
       }
     } catch (error) {
@@ -104,12 +137,27 @@ const DashboardPage = ({
         setIsInitialLoad(false);
       }
     }
-  }, [isInitialLoad, getCurrentBatteryTagId]);
+  }, [isInitialLoad, getCurrentBatteryTagId, dataType]);
 
-  // Set initial data from props
+  // Handle data type change
+  const handleDataTypeChange = (newDataType) => {
+    console.log("Data type changed to:", newDataType);
+    setDataType(newDataType);
+    setIsInitialLoad(true);
+    
+    // Clear previous data
+    if (newDataType === "packcontroller") {
+      setBmsState(null);
+    } else {
+      setPackControllerState(null);
+    }
+  };
+
+  // Set initial data from props (for battery data only)
   useEffect(() => {
     console.log("bmsData:", bmsData);
     if (
+      dataType === "battery" &&
       bmsData &&
       bmsData.lastMinuteData &&
       bmsData.lastMinuteData.length > 0
@@ -123,26 +171,36 @@ const DashboardPage = ({
       setIsInitialLoad(false);
     } else {
       console.log("No initial data in props, fetching...");
-      // Only fetch if we have a registered battery
-      if (hasRegisteredBatteries) {
+      // Fetch data based on data type and availability
+      if ((dataType === "battery" && hasRegisteredBatteries) || dataType === "packcontroller") {
         fetchLatestData();
       }
     }
-  }, [bmsData, fetchLatestData, hasRegisteredBatteries]);
+  }, [bmsData, fetchLatestData, hasRegisteredBatteries, dataType]);
 
-  // Fetch data when battery selection changes
+  // Fetch data when battery selection changes (only for battery data type)
   useEffect(() => {
-    if (selectedBattery && isInitialLoad && hasRegisteredBatteries) {
+    if (dataType === "battery" && selectedBattery && isInitialLoad && hasRegisteredBatteries) {
       console.log("Battery changed to:", selectedBattery.batteryId);
       setIsInitialLoad(true);
       setBmsState(null);
       fetchLatestData();
     }
-  }, [selectedBattery, fetchLatestData, hasRegisteredBatteries]);
+  }, [selectedBattery, fetchLatestData, hasRegisteredBatteries, dataType]);
+
+  // Fetch data when data type changes
+  useEffect(() => {
+    if (dataType === "packcontroller" || (dataType === "battery" && hasRegisteredBatteries)) {
+      fetchLatestData();
+    }
+  }, [dataType, fetchLatestData, hasRegisteredBatteries]);
 
   // Set up auto-refresh interval
   useEffect(() => {
-    if (!isInitialLoad && hasRegisteredBatteries) {
+    if (!isInitialLoad && (
+      (dataType === "battery" && hasRegisteredBatteries) || 
+      dataType === "packcontroller"
+    )) {
       refreshIntervalRef.current = setInterval(() => {
         fetchLatestData();
       }, 20000); // 20 seconds
@@ -153,7 +211,7 @@ const DashboardPage = ({
         clearInterval(refreshIntervalRef.current);
       }
     };
-  }, [fetchLatestData, isInitialLoad, hasRegisteredBatteries]);
+  }, [fetchLatestData, isInitialLoad, hasRegisteredBatteries, dataType]);
 
   const roundValue = (value) => {
     if (value === null || value === undefined || value === "NaN") {
@@ -164,66 +222,39 @@ const DashboardPage = ({
 
   // Helper function to safely access data values
   const getDataValue = (field) => {
-    if (!bmsState || !field) return "0.00";
+    const currentState = dataType === "packcontroller" ? packControllerState : bmsState;
+    
+    if (!currentState || !field) return "0.00";
 
-    if (bmsState[field]?.N !== undefined) {
-      return bmsState[field].N;
+    if (currentState[field]?.N !== undefined) {
+      return currentState[field].N;
     }
 
-    if (bmsState[field] !== undefined) {
-      return bmsState[field];
+    if (currentState[field] !== undefined) {
+      return currentState[field];
     }
 
     return "0.00";
   };
 
-  const nodeData = [
-    {
-      node: "Node 00",
-      data: {
-        balanceStatus: roundValue(getDataValue("Node00BalanceStatus")),
-        totalVoltage: roundValue(getDataValue("Node00TotalVoltage")),
-        cellVoltages: Array.from({ length: 14 }, (_, i) =>
-          roundValue(getDataValue(`Node00Cell${i < 10 ? `0${i}` : i}`))
-        ),
-        temperatures: Array.from({ length: 6 }, (_, i) =>
-          roundValue(getDataValue(`Node00Temp${i < 10 ? `0${i}` : i}`))
-        ),
-        tempCount: roundValue(getDataValue("Node00TempCount")),
-        numcells: roundValue(getDataValue("Node00CellCount")),
-      },
-    },
-    {
-      node: "Node 01",
-      data: {
-        balanceStatus: roundValue(getDataValue("Node01BalanceStatus")),
-        totalVoltage: roundValue(getDataValue("Node01TotalVoltage")),
-        cellVoltages: Array.from({ length: 14 }, (_, i) =>
-          roundValue(getDataValue(`Node01Cell${i < 10 ? `0${i}` : i}`))
-        ),
-        temperatures: Array.from({ length: 6 }, (_, i) =>
-          roundValue(getDataValue(`Node01Temp${i < 10 ? `0${i}` : i}`))
-        ),
-        tempCount: roundValue(getDataValue("Node01TempCount")),
-        numcells: roundValue(getDataValue("Node01CellCount")),
-      },
-    },
-  ];
+  // Show loading spinner during initial load
+  const shouldShowLoading = isInitialLoad || 
+    (dataType === "battery" && (!bmsState || !hasRegisteredBatteries)) ||
+    (dataType === "packcontroller" && !packControllerState);
 
-  // Show loading spinner during initial load or if no batteries registered
-  if (isInitialLoad || !bmsState || !hasRegisteredBatteries) {
+  if (shouldShowLoading) {
     return <LoadingSpinner />;
   }
 
   // Define professional color scheme
   const colors = {
-    primary: "#2E7D32", // Professional green
-    secondary: "#66BB6A", // Light green
-    accent: "#4CAF50", // Accent green
-    grey: "#757575", // Medium grey
-    lightGrey: "#E0E0E0", // Light grey
-    darkGrey: "#424242", // Dark grey
-    background: "#FAFAFA", // Off-white background
+    primary: "#2E7D32",
+    secondary: "#66BB6A",
+    accent: "#4CAF50",
+    grey: "#757575",
+    lightGrey: "#E0E0E0",
+    darkGrey: "#424242",
+    background: "#FAFAFA",
     white: "#FFFFFF",
     textDark: "#212121",
     textLight: "#757575",
@@ -286,7 +317,55 @@ const DashboardPage = ({
     </button>
   );
 
+  // Generate node data for battery view
+  const nodeData = dataType === "battery" ? [
+    {
+      node: "Node 00",
+      data: {
+        balanceStatus: roundValue(getDataValue("Node00BalanceStatus")),
+        totalVoltage: roundValue(getDataValue("Node00TotalVoltage")),
+        cellVoltages: Array.from({ length: 14 }, (_, i) =>
+          roundValue(getDataValue(`Node00Cell${i < 10 ? `0${i}` : i}`))
+        ),
+        temperatures: Array.from({ length: 6 }, (_, i) =>
+          roundValue(getDataValue(`Node00Temp${i < 10 ? `0${i}` : i}`))
+        ),
+        tempCount: roundValue(getDataValue("Node00TempCount")),
+        numcells: roundValue(getDataValue("Node00CellCount")),
+      },
+    },
+    {
+      node: "Node 01",
+      data: {
+        balanceStatus: roundValue(getDataValue("Node01BalanceStatus")),
+        totalVoltage: roundValue(getDataValue("Node01TotalVoltage")),
+        cellVoltages: Array.from({ length: 14 }, (_, i) =>
+          roundValue(getDataValue(`Node01Cell${i < 10 ? `0${i}` : i}`))
+        ),
+        temperatures: Array.from({ length: 6 }, (_, i) =>
+          roundValue(getDataValue(`Node01Temp${i < 10 ? `0${i}` : i}`))
+        ),
+        tempCount: roundValue(getDataValue("Node01TempCount")),
+        numcells: roundValue(getDataValue("Node01CellCount")),
+      },
+    },
+  ] : [];
+
   const renderContent = () => {
+    if (dataType === "packcontroller") {
+      return (
+        <PackControllerView
+          packControllerState={packControllerState}
+          roundValue={roundValue}
+          colors={colors}
+          RefreshButton={RefreshButton}
+          isMobile={isMobile}
+          activeSection={activeSection}
+        />
+      );
+    }
+
+    // Battery content
     switch (activeSection) {
       case "system":
         return (
@@ -299,7 +378,7 @@ const DashboardPage = ({
             containerRef={metricsContainerRef}
           />
         );
-      case "details": // Changed from "tables" to match App.js
+      case "details":
         return (
           <CellView
             nodeData={nodeData}
@@ -327,7 +406,7 @@ const DashboardPage = ({
   return (
       <div
         style={{
-          minHeight: "100vh",  // Changed from fixed positioning
+          minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
           backgroundColor: colors.background,
@@ -337,7 +416,7 @@ const DashboardPage = ({
       >
       <ToastContainer />
 
-      {/* Secondary Header Bar - Updated with Battery Registration selector */}
+      {/* Secondary Header Bar */}
       <div
         style={{
           backgroundColor: colors.white,
@@ -358,35 +437,74 @@ const DashboardPage = ({
             margin: 0,
           }}
         >
-          {activeSection === "system" && "System Overview"}
-          {activeSection === "details" && "Detailed View"}
-          {activeSection === "installations" && "Installations"}
+          {dataType === "packcontroller" 
+            ? (activeSection === "alarms" ? "Alarm History" : "Pack Controller Overview")
+            : (activeSection === "system" && "System Overview") ||
+              (activeSection === "details" && "Detailed View") ||
+              (activeSection === "installations" && "Installations")}
         </h2>
         
-        {/* Replaced local BatterySelector with registration system BatterySelector */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {!isMobile && (
-            <label
+        {/* Data Type and Battery Selector */}
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          {/* Data Type Selector */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {!isMobile && (
+              <label
+                style={{
+                  color: colors.textDark,
+                  fontWeight: "500",
+                  fontSize: "14px",
+                }}
+              >
+                Data Type:
+              </label>
+            )}
+            <select
+              value={dataType}
+              onChange={(e) => handleDataTypeChange(e.target.value)}
               style={{
+                backgroundColor: colors.white,
                 color: colors.textDark,
-                fontWeight: "500",
+                border: `1px solid ${colors.lightGrey}`,
+                borderRadius: "4px",
                 fontSize: "14px",
+                padding: "6px 10px",
+                cursor: "pointer",
+                fontWeight: "500",
               }}
             >
-              Battery:
-            </label>
+              <option value="battery">Battery Data</option>
+              <option value="packcontroller">Pack Controller</option>
+            </select>
+          </div>
+
+          {/* Battery Selector - Only show for battery data type */}
+          {dataType === "battery" && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {!isMobile && (
+                <label
+                  style={{
+                    color: colors.textDark,
+                    fontWeight: "500",
+                    fontSize: "14px",
+                  }}
+                >
+                  Battery:
+                </label>
+              )}
+              <BatterySelector
+                style={{
+                  backgroundColor: colors.white,
+                  color: colors.textDark,
+                  border: `1px solid ${colors.lightGrey}`,
+                  fontSize: "14px",
+                  minWidth: "140px",
+                }}
+                showAddButton={false}
+                compact={true}
+              />
+            </div>
           )}
-          <BatterySelector
-            style={{
-              backgroundColor: colors.white,
-              color: colors.textDark,
-              border: `1px solid ${colors.lightGrey}`,
-              fontSize: "14px",
-              minWidth: "140px",
-            }}
-            showAddButton={false}
-            compact={true}
-          />
         </div>
       </div>
 
@@ -397,7 +515,7 @@ const DashboardPage = ({
           padding: "16px",
           overflow: "auto",
           minHeight: 0,
-          WebkitOverflowScrolling: "touch", // Smooth scrolling on iOS
+          WebkitOverflowScrolling: "touch",
         }}
       >
         <div 
