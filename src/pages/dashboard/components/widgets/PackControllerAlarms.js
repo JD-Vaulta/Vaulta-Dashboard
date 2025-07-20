@@ -1,11 +1,18 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 const PackControllerAlarms = ({ 
   packControllerState, 
   activeAlarms = [], 
   colors = {}, 
-  isMobile = false 
+  isMobile = false,
+  showHistory = false,
+  onNewAlarm = null // Callback for new alarms
 }) => {
+  const [alarmHistory, setAlarmHistory] = useState([]);
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationAlarm, setNotificationAlarm] = useState(null);
+  const [lastActiveAlarms, setLastActiveAlarms] = useState([]);
+
   // Helper function to safely get values
   const getValue = (key, defaultValue = 0) => {
     return packControllerState?.[key]?.N || packControllerState?.[key] || defaultValue;
@@ -70,6 +77,45 @@ const PackControllerAlarms = ({
       color: colors.warning 
     };
   };
+
+  // Monitor for new alarms and update history
+  useEffect(() => {
+    if (!packControllerState) return;
+    
+    const currentAlarms = getCurrentAlarms();
+    
+    // Check for new alarms
+    const newAlarms = currentAlarms.filter(current => 
+      !lastActiveAlarms.some(last => last.key === current.key)
+    );
+
+    if (newAlarms.length > 0) {
+      // Add to history
+      const newHistoryEntries = newAlarms.map(alarm => ({
+        ...alarm,
+        timestamp: new Date(),
+        id: Date.now() + Math.random()
+      }));
+
+      setAlarmHistory(prev => {
+        const updated = [...newHistoryEntries, ...prev];
+        return updated.slice(0, 5); // Keep only last 5
+      });
+
+      // Show notification for the first new alarm
+      if (newAlarms[0]) {
+        setNotificationAlarm(newAlarms[0]);
+        setShowNotification(true);
+        
+        // Call callback if provided
+        if (onNewAlarm) {
+          onNewAlarm(newAlarms[0]);
+        }
+      }
+    }
+
+    setLastActiveAlarms(currentAlarms);
+  }, [packControllerState, lastActiveAlarms, onNewAlarm]);
 
   // Get current active alarms
   const getCurrentAlarms = () => {
@@ -144,181 +190,319 @@ const PackControllerAlarms = ({
     }
   };
 
-  return (
-    <div
-      style={{
-        padding: isMobile ? "8px 12px" : "12px 16px",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "12px",
-          paddingBottom: "8px",
-          borderBottom: `1px solid ${colors.lightGrey}`,
-          flexShrink: 0,
-        }}
-      >
-        <h3
-          style={{
-            fontSize: isMobile ? "14px" : "16px",
-            fontWeight: "600",
-            color: colors.textDark,
-            margin: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
-          <span style={{ fontSize: "18px" }}>🚨</span>
-          Active Alarms
-        </h3>
-        <div
-          style={{
-            backgroundColor: currentAlarms.length > 0 ? 
-              (currentAlarms.some(a => a.severity === "critical") ? colors.error : colors.warning) + "20" :
-              colors.success + "20",
-            color: currentAlarms.length > 0 ? 
-              (currentAlarms.some(a => a.severity === "critical") ? colors.error : colors.warning) :
-              colors.success,
-            padding: "4px 8px",
-            borderRadius: "12px",
-            fontSize: isMobile ? "10px" : "12px",
-            fontWeight: "600",
-          }}
-        >
-          {currentAlarms.length} Active
-        </div>
-      </div>
+  // Notification Component
+  const AlarmNotification = () => {
+    if (!showNotification || !notificationAlarm) return null;
 
-      {/* Alarms List */}
+    return (
       <div
         style={{
-          flex: 1,
-          overflow: "auto",
-          minHeight: 0,
+          position: "fixed",
+          top: "20px",
+          right: "20px",
+          backgroundColor: colors.white,
+          border: `2px solid ${getSeverityColor(notificationAlarm.severity)}`,
+          borderRadius: "8px",
+          padding: "16px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          zIndex: 1000,
+          maxWidth: "350px",
+          animation: "slideIn 0.3s ease-out",
         }}
       >
-        {currentAlarms.length === 0 ? (
-          <div
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ display: "flex", alignItems: "center", flex: 1 }}>
+            <span style={{ fontSize: "24px", marginRight: "12px" }}>
+              {getSeverityIcon(notificationAlarm.severity)}
+            </span>
+            <div>
+              <h4 style={{ 
+                margin: "0 0 4px 0", 
+                color: colors.textDark,
+                fontSize: "14px",
+                fontWeight: "600" 
+              }}>
+                New Alarm Detected
+              </h4>
+              <p style={{ 
+                margin: "0 0 4px 0", 
+                color: colors.textDark,
+                fontSize: "13px" 
+              }}>
+                {notificationAlarm.description}
+              </p>
+              <p style={{ 
+                margin: 0, 
+                color: colors.textLight,
+                fontSize: "11px" 
+              }}>
+                Severity: {notificationAlarm.severity.toUpperCase()}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowNotification(false)}
             style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              textAlign: "center",
+              background: "none",
+              border: "none",
+              fontSize: "18px",
+              cursor: "pointer",
               color: colors.textLight,
+              marginLeft: "8px",
             }}
           >
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}>✅</div>
-            <h4 style={{ margin: "0 0 8px 0", color: colors.success }}>
-              All Systems Normal
-            </h4>
-            <p style={{ margin: 0, fontSize: "14px" }}>
-              No active alarms detected
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {currentAlarms.map((alarm, index) => (
-              <div
-                key={index}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: isMobile ? "8px" : "12px",
-                  backgroundColor: `${getSeverityColor(alarm.severity)}10`,
-                  border: `1px solid ${getSeverityColor(alarm.severity)}30`,
-                  borderRadius: "8px",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = `${getSeverityColor(alarm.severity)}20`;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = `${getSeverityColor(alarm.severity)}10`;
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: isMobile ? "18px" : "20px",
-                    marginRight: "12px",
-                    flexShrink: 0,
-                  }}
-                >
-                  {getSeverityIcon(alarm.severity)}
-                </div>
-                
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: isMobile ? "12px" : "14px",
-                      fontWeight: "600",
-                      color: colors.textDark,
-                      marginBottom: "2px",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {alarm.description}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: isMobile ? "10px" : "11px",
-                      color: colors.textLight,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <span>Severity: {alarm.severity.toUpperCase()}</span>
-                    <span>{alarm.timestamp}</span>
-                  </div>
-                </div>
+            ×
+          </button>
+        </div>
+      </div>
+    );
+  };
 
+  return (
+    <>
+      <AlarmNotification />
+      <div
+        style={{
+          padding: isMobile ? "8px 12px" : "12px 16px",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "12px",
+            paddingBottom: "8px",
+            borderBottom: `1px solid ${colors.lightGrey}`,
+            flexShrink: 0,
+          }}
+        >
+          <h3
+            style={{
+              fontSize: isMobile ? "14px" : "16px",
+              fontWeight: "600",
+              color: colors.textDark,
+              margin: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <span style={{ fontSize: "18px" }}>🚨</span>
+            Active Alarms
+          </h3>
+          <div
+            style={{
+              backgroundColor: currentAlarms.length > 0 ? 
+                (currentAlarms.some(a => a.severity === "critical") ? colors.error : colors.warning) + "20" :
+                colors.success + "20",
+              color: currentAlarms.length > 0 ? 
+                (currentAlarms.some(a => a.severity === "critical") ? colors.error : colors.warning) :
+                colors.success,
+              padding: "4px 8px",
+              borderRadius: "12px",
+              fontSize: isMobile ? "10px" : "12px",
+              fontWeight: "600",
+            }}
+          >
+            {currentAlarms.length} Active
+          </div>
+        </div>
+
+        {/* Active Alarms List */}
+        <div
+          style={{
+            flex: showHistory ? "0 0 60%" : 1,
+            overflow: "auto",
+            minHeight: 0,
+            marginBottom: showHistory ? "12px" : 0,
+          }}
+        >
+          {currentAlarms.length === 0 ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                textAlign: "center",
+                color: colors.textLight,
+              }}
+            >
+              <div style={{ fontSize: "48px", marginBottom: "16px" }}>✅</div>
+              <h4 style={{ margin: "0 0 8px 0", color: colors.success }}>
+                All Systems Normal
+              </h4>
+              <p style={{ margin: 0, fontSize: "14px" }}>
+                No active alarms detected
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {currentAlarms.map((alarm, index) => (
                 <div
+                  key={index}
                   style={{
-                    fontSize: isMobile ? "16px" : "18px",
-                    marginLeft: "8px",
-                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    padding: isMobile ? "8px" : "10px",
+                    backgroundColor: `${getSeverityColor(alarm.severity)}10`,
+                    border: `1px solid ${getSeverityColor(alarm.severity)}30`,
+                    borderRadius: "6px",
+                    transition: "all 0.2s ease",
                   }}
                 >
-                  {alarm.icon}
+                  <div style={{ fontSize: isMobile ? "16px" : "18px", marginRight: "10px" }}>
+                    {getSeverityIcon(alarm.severity)}
+                  </div>
+                  
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: isMobile ? "12px" : "13px",
+                        fontWeight: "600",
+                        color: colors.textDark,
+                        marginBottom: "2px",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {alarm.description}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: isMobile ? "10px" : "11px",
+                        color: colors.textLight,
+                        display: "flex",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span>Severity: {alarm.severity.toUpperCase()}</span>
+                      <span>{alarm.timestamp}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: isMobile ? "14px" : "16px", marginLeft: "8px" }}>
+                    {alarm.icon}
+                  </div>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Recent Alarm History */}
+        {showHistory && alarmHistory.length > 0 && (
+          <div
+            style={{
+              flex: "0 0 35%",
+              borderTop: `1px solid ${colors.lightGrey}`,
+              paddingTop: "12px",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <h4
+              style={{
+                fontSize: isMobile ? "12px" : "14px",
+                fontWeight: "600",
+                color: colors.textDark,
+                margin: "0 0 8px 0",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <span style={{ fontSize: "14px" }}>📋</span>
+              Recent Alarms (Last 5)
+            </h4>
+            <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {alarmHistory.map((alarm, index) => (
+                  <div
+                    key={alarm.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      padding: isMobile ? "6px" : "8px",
+                      backgroundColor: colors.background,
+                      borderRadius: "4px",
+                      border: `1px solid ${colors.lightGrey}`,
+                    }}
+                  >
+                    <div style={{ fontSize: "12px", marginRight: "8px", opacity: 0.7 }}>
+                      {alarm.icon}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: isMobile ? "10px" : "11px",
+                          fontWeight: "500",
+                          color: colors.textDark,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {alarm.description}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: isMobile ? "9px" : "10px",
+                          color: colors.textLight,
+                        }}
+                      >
+                        {alarm.timestamp.toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+          </div>
+        )}
+
+        {/* Summary */}
+        {currentAlarms.length > 0 && (
+          <div
+            style={{
+              marginTop: "8px",
+              padding: "6px 10px",
+              backgroundColor: colors.background,
+              borderRadius: "4px",
+              fontSize: isMobile ? "10px" : "11px",
+              color: colors.textLight,
+              flexShrink: 0,
+            }}
+          >
+            Critical: {currentAlarms.filter(a => a.severity === "critical").length} | 
+            High: {currentAlarms.filter(a => a.severity === "high").length} | 
+            Medium: {currentAlarms.filter(a => a.severity === "medium").length}
           </div>
         )}
       </div>
 
-      {/* Summary */}
-      {currentAlarms.length > 0 && (
-        <div
-          style={{
-            marginTop: "12px",
-            padding: "8px 12px",
-            backgroundColor: colors.background,
-            borderRadius: "6px",
-            fontSize: isMobile ? "10px" : "12px",
-            color: colors.textLight,
-            flexShrink: 0,
-          }}
-        >
-          Critical: {currentAlarms.filter(a => a.severity === "critical").length} | 
-          High: {currentAlarms.filter(a => a.severity === "high").length} | 
-          Medium: {currentAlarms.filter(a => a.severity === "medium").length}
-        </div>
-      )}
-    </div>
+      <style jsx>{`
+        @keyframes slideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
+    </>
   );
 };
 

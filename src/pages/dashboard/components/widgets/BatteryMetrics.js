@@ -89,10 +89,10 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
     {
       title: "State of Charge",
       key: "SOCPercent",
-      value: parseFloat(bmsState.SOCPercent?.N || 0),
+      value: parseFloat(bmsState.SOCPercent?.N ),
       maxValue: 100,
       unit: "%",
-      additionalInfo: `${roundValue(bmsState.SOCAh?.N || 0)} Ah`,
+      additionalInfo: `${roundValue(bmsState.SOCAh?.N )} Ah`,
       status: "Charging",
       statusColor: colors.success,
       trend: "+2.5%",
@@ -106,7 +106,7 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
     {
       title: "State of Balance",
       key: "SOB",
-      value: parseFloat(bmsState.BalanceSOCPercent?.N || 36),
+      value: parseFloat(bmsState.BalanceSOCPercent?.N),
       maxValue: 100,
       unit: "%",
       additionalInfo: "3.35V-3.37V",
@@ -119,7 +119,7 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
     {
       title: "Battery Temp",
       key: "Temperature",
-      value: parseFloat(bmsState.MaxCellTemp?.N || 36),
+      value: parseFloat(bmsState.MaxCellTemp?.N),
       maxValue: 60,
       unit: "°C",
       additionalInfo: "35.5°-37.5°",
@@ -136,7 +136,7 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
     {
       title: "State of Health",
       key: "SOH",
-      value: parseFloat(bmsState.SOH?.N || 36),
+      value: parseFloat(bmsState.SOH_Estimate?.N),
       maxValue: 100,
       unit: "%",
       additionalInfo: "Uptime 99%",

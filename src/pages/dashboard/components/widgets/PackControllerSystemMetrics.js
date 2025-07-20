@@ -4,9 +4,10 @@ const PackControllerSystemMetrics = ({
   packControllerState, 
   roundValue, 
   colors = {}, 
-  isMobile = false 
+  isMobile = false,
+  compact = false 
 }) => {
-  const [activeTab, setActiveTab] = useState("system");
+  const [activeTab, setActiveTab] = useState("essential");
 
   // Helper function to safely get values
   const getValue = (key, defaultValue = 0) => {
@@ -24,66 +25,51 @@ const PackControllerSystemMetrics = ({
     return colors.success || "#4CAF50";
   };
 
-  // Helper function to render metric item
-  const MetricItem = ({ label, value, unit = "", limits = "", status = "normal", icon = "" }) => (
+  // Compact metric item for reduced scrolling
+  const CompactMetricItem = ({ label, value, unit = "", status = "normal", icon = "" }) => (
     <div
       style={{
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        padding: isMobile ? "8px 12px" : "10px 16px",
-        backgroundColor: status === "critical" ? colors.error + "10" : 
-                       status === "warning" ? colors.warning + "10" : 
-                       colors.background,
-        borderRadius: "6px",
-        marginBottom: "8px",
-        border: `1px solid ${status === "critical" ? colors.error + "30" : 
-                              status === "warning" ? colors.warning + "30" : 
-                              colors.lightGrey}`,
+        padding: isMobile ? "6px 8px" : "8px 12px",
+        backgroundColor: status === "critical" ? colors.error + "08" : 
+                       status === "warning" ? colors.warning + "08" : 
+                       "transparent",
+        borderRadius: "4px",
+        marginBottom: "4px",
+        border: status !== "normal" ? `1px solid ${status === "critical" ? colors.error + "30" : colors.warning + "30"}` : "none",
         transition: "all 0.2s ease",
+        minHeight: isMobile ? "32px" : "36px",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = status === "critical" ? colors.error + "20" : 
-                                               status === "warning" ? colors.warning + "20" : 
-                                               colors.lightGrey + "50";
+        e.currentTarget.style.backgroundColor = status === "critical" ? colors.error + "15" : 
+                                               status === "warning" ? colors.warning + "15" : 
+                                               colors.lightGrey + "30";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = status === "critical" ? colors.error + "10" : 
-                                               status === "warning" ? colors.warning + "10" : 
-                                               colors.background;
+        e.currentTarget.style.backgroundColor = status === "critical" ? colors.error + "08" : 
+                                               status === "warning" ? colors.warning + "08" : 
+                                               "transparent";
       }}
     >
-      <div style={{ flex: 1 }}>
-        <div
-          style={{
-            fontSize: isMobile ? "12px" : "14px",
-            fontWeight: "600",
-            color: colors.textDark,
-            marginBottom: "2px",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-          }}
-        >
-          {icon && <span style={{ fontSize: "16px" }}>{icon}</span>}
-          {label}
-        </div>
-        {limits && (
-          <div
-            style={{
-              fontSize: isMobile ? "10px" : "11px",
-              color: colors.textLight,
-              fontWeight: "400",
-            }}
-          >
-            {limits}
-          </div>
-        )}
+      <div
+        style={{
+          fontSize: isMobile ? "11px" : "12px",
+          fontWeight: "500",
+          color: colors.textDark,
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+        }}
+      >
+        {icon && <span style={{ fontSize: "14px" }}>{icon}</span>}
+        {label}
       </div>
       <div
         style={{
-          fontSize: isMobile ? "14px" : "16px",
-          fontWeight: "700",
+          fontSize: isMobile ? "12px" : "14px",
+          fontWeight: "600",
           color: status === "critical" ? colors.error : 
                  status === "warning" ? colors.warning : 
                  colors.textDark,
@@ -94,160 +80,189 @@ const PackControllerSystemMetrics = ({
     </div>
   );
 
-  const systemMetrics = [
+  // Grid layout for essential metrics
+  const EssentialGrid = ({ metrics }) => (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)",
+        gap: "6px",
+        padding: "4px",
+      }}
+    >
+      {metrics.map((metric, index) => (
+        <div
+          key={index}
+          style={{
+            backgroundColor: colors.background,
+            borderRadius: "6px",
+            padding: isMobile ? "8px" : "10px",
+            border: `1px solid ${colors.lightGrey}`,
+            textAlign: "center",
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = colors.primary;
+            e.currentTarget.style.transform = "translateY(-2px)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = colors.lightGrey;
+            e.currentTarget.style.transform = "translateY(0)";
+          }}
+        >
+          <div
+            style={{
+              fontSize: isMobile ? "16px" : "18px",
+              marginBottom: "4px",
+            }}
+          >
+            {metric.icon}
+          </div>
+          <div
+            style={{
+              fontSize: isMobile ? "10px" : "11px",
+              color: colors.textLight,
+              fontWeight: "500",
+              textTransform: "uppercase",
+              letterSpacing: "0.3px",
+              marginBottom: "2px",
+            }}
+          >
+            {metric.label}
+          </div>
+          <div
+            style={{
+              fontSize: isMobile ? "14px" : "16px",
+              fontWeight: "600",
+              color: metric.status === "critical" ? colors.error : 
+                     metric.status === "warning" ? colors.warning : 
+                     colors.textDark,
+            }}
+          >
+            {metric.value}{metric.unit}
+          </div>
+          {metric.subtext && (
+            <div
+              style={{
+                fontSize: isMobile ? "9px" : "10px",
+                color: colors.textLight,
+                marginTop: "2px",
+              }}
+            >
+              {metric.subtext}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  // Essential metrics (most important, displayed in grid)
+  const essentialMetrics = [
     {
       label: "Device ID",
-      value: getValue("DeviceId"),
+      value: getValue("DeviceId") || "N/A",
+      unit: "",
       icon: "🔧",
-      limits: "",
+      subtext: "Controller ID"
     },
     {
-      label: "Serial Number",
-      value: getValue("SerialNumber"),
-      icon: "#️⃣",
-      limits: "",
-    },
-    {
-      label: "Firmware Model",
-      value: getValue("FirmwareModel"),
-      icon: "💾",
-      limits: "",
-    },
-    {
-      label: "Battery Model",
-      value: getValue("BatteryModel"),
-      icon: "🔋",
-      limits: "",
-    },
-    {
-      label: "System State",
+      label: "State",
       value: getValue("State"),
+      unit: "",
       icon: "⚙️",
-      limits: "State codes: 0-7",
+      subtext: "System State"
     },
     {
-      label: "Events Count",
+      label: "Events",
       value: getValue("Events"),
+      unit: "",
       icon: "📊",
-      limits: "Cumulative events",
+      subtext: "Total Events"
+    },
+    {
+      label: "Model",
+      value: getValue("BatteryModel") || getValue("FirmwareModel") || "N/A",
+      unit: "",
+      icon: "🔋",
+      subtext: "Battery Model"
     },
   ];
 
+  // Power metrics (compact list)
   const powerMetrics = [
     {
-      label: "Total Voltage",
-      value: roundValue(getValue("TotalVoltage")),
-      unit: "V",
-      icon: "⚡",
-      limits: `Range: ${getValue("SystemMinVoltage", 0)}-${getValue("SystemMaxVoltage", 100)}V`,
-      status: getStatusColor(getValue("TotalVoltage"), {
-        critical: { min: getValue("SystemMinVoltage", 0) * 0.9, max: getValue("SystemMaxVoltage", 100) * 1.1 },
-        warning: { min: getValue("SystemMinVoltage", 0) * 0.95, max: getValue("SystemMaxVoltage", 100) * 1.05 }
-      }) === colors.error ? "critical" : 
-             getStatusColor(getValue("TotalVoltage"), {
-               warning: { min: getValue("SystemMinVoltage", 0) * 0.95, max: getValue("SystemMaxVoltage", 100) * 1.05 }
-             }) === colors.warning ? "warning" : "normal"
-    },
-    {
-      label: "System Voltage",
-      value: roundValue(getValue("SystemVoltage")),
-      unit: "V",
-      icon: "🔌",
-      limits: `Range: ${getValue("SystemMinVoltage", 0)}-${getValue("SystemMaxVoltage", 100)}V`,
-    },
-    {
-      label: "Total Current",
-      value: roundValue(getValue("TotalCurrent")),
-      unit: "A",
-      icon: "⚡",
-      limits: `Max: ±${getValue("SystemChargeCurrent", 144)}A`,
-      status: Math.abs(getValue("TotalCurrent")) > getValue("SystemChargeCurrent", 144) * 0.9 ? "warning" : "normal"
-    },
-    {
-      label: "System Current",
-      value: roundValue(getValue("SystemCurrent")),
-      unit: "A",
-      icon: "🔄",
-      limits: `Max: ±${getValue("SystemDischargeCurrent", 144)}A`,
-    },
-    {
-      label: "Charge Current Limit",
+      label: "Charge Limit",
       value: getValue("SystemChargeCurrent", 144),
       unit: "A",
       icon: "🔋",
-      limits: "Maximum charge current",
     },
     {
-      label: "Discharge Current Limit",
+      label: "Discharge Limit",
       value: getValue("SystemDischargeCurrent", 144),
       unit: "A",
       icon: "⚡",
-      limits: "Maximum discharge current",
+    },
+    {
+      label: "Min Voltage",
+      value: getValue("SystemMinVoltage", 0),
+      unit: "V",
+      icon: "📉",
+    },
+    {
+      label: "Max Voltage",
+      value: getValue("SystemMaxVoltage", 100),
+      unit: "V",
+      icon: "📈",
     },
   ];
 
-  const batteryMetrics = [
+  // System info metrics (compact list)
+  const systemMetrics = [
     {
-      label: "State of Charge",
-      value: roundValue(getValue("SOCPercent")),
-      unit: "%",
-      icon: "🔋",
-      limits: "Range: 0-100%",
-      status: getValue("SOCPercent") < 20 ? "critical" : getValue("SOCPercent") < 50 ? "warning" : "normal"
+      label: "Serial Number",
+      value: getValue("SerialNumber") || "N/A",
+      unit: "",
+      icon: "#️⃣",
     },
     {
-      label: "System SOC",
-      value: roundValue(getValue("SystemSoc")),
-      unit: "%",
-      icon: "📊",
-      limits: "System-level SOC",
+      label: "Firmware",
+      value: getValue("FirmwareModel") || "N/A",
+      unit: "",
+      icon: "💾",
     },
     {
-      label: "State of Health",
-      value: roundValue(getValue("SOHPercent")),
-      unit: "%",
-      icon: "💚",
-      limits: "Range: 80-100%",
-      status: getValue("SOHPercent") < 80 ? "critical" : getValue("SOHPercent") < 90 ? "warning" : "normal"
-    },
-    {
-      label: "System SOH",
-      value: roundValue(getValue("SystemSoh")),
-      unit: "%",
-      icon: "📈",
-      limits: "System-level SOH",
-    },
-    {
-      label: "System Temperature",
-      value: roundValue(getValue("SystemTemp")),
-      unit: "°C",
-      icon: "🌡️",
-      limits: "Range: -10 to 60°C",
-      status: getValue("SystemTemp") > 50 ? "warning" : getValue("SystemTemp") > 60 ? "critical" : "normal"
+      label: "Tag ID",
+      value: getValue("TagID") || "N/A",
+      unit: "",
+      icon: "🏷️",
     },
     {
       label: "Carbon Offset",
       value: roundValue(getValue("Carbon_Offset_kg")),
       unit: "kg",
       icon: "🌱",
-      limits: "Cumulative CO₂ offset",
     },
   ];
 
   const getTabData = () => {
     switch (activeTab) {
-      case "system": return systemMetrics;
-      case "power": return powerMetrics;
-      case "battery": return batteryMetrics;
-      default: return systemMetrics;
+      case "essential": return { type: "grid", data: essentialMetrics };
+      case "power": return { type: "list", data: powerMetrics };
+      case "system": return { type: "list", data: systemMetrics };
+      default: return { type: "grid", data: essentialMetrics };
     }
   };
 
   const tabData = getTabData();
-  const tabs = [
-    { key: "system", label: "System", icon: "⚙️" },
+  const tabs = compact ? [
+    { key: "essential", label: "Essential", icon: "⭐" },
     { key: "power", label: "Power", icon: "⚡" },
-    { key: "battery", label: "Battery", icon: "🔋" },
+    { key: "system", label: "Info", icon: "ℹ️" },
+  ] : [
+    { key: "essential", label: "Essential", icon: "⭐" },
+    { key: "power", label: "Power Limits", icon: "⚡" },
+    { key: "system", label: "System Info", icon: "ℹ️" },
   ];
 
   return (
@@ -264,7 +279,7 @@ const PackControllerSystemMetrics = ({
         style={{
           display: "flex",
           borderBottom: `1px solid ${colors.lightGrey}`,
-          marginBottom: "12px",
+          marginBottom: "8px",
           flexShrink: 0,
         }}
       >
@@ -274,14 +289,14 @@ const PackControllerSystemMetrics = ({
             onClick={() => setActiveTab(tab.key)}
             style={{
               flex: 1,
-              padding: isMobile ? "8px 12px" : "10px 16px",
+              padding: isMobile ? "6px 8px" : "8px 12px",
               backgroundColor: activeTab === tab.key ? colors.primary : "transparent",
               color: activeTab === tab.key ? colors.white : colors.textDark,
               border: "none",
               borderBottom: activeTab === tab.key ? `2px solid ${colors.primary}` : "2px solid transparent",
               cursor: "pointer",
               fontWeight: activeTab === tab.key ? "600" : "normal",
-              fontSize: isMobile ? "11px" : "13px",
+              fontSize: isMobile ? "10px" : "12px",
               transition: "all 0.2s ease",
               display: "flex",
               alignItems: "center",
@@ -291,7 +306,7 @@ const PackControllerSystemMetrics = ({
             }}
             onMouseEnter={(e) => {
               if (activeTab !== tab.key) {
-                e.target.style.backgroundColor = colors.lightGrey;
+                e.target.style.backgroundColor = colors.lightGrey + "50";
               }
             }}
             onMouseLeave={(e) => {
@@ -300,7 +315,7 @@ const PackControllerSystemMetrics = ({
               }
             }}
           >
-            <span style={{ fontSize: isMobile ? "12px" : "14px" }}>{tab.icon}</span>
+            <span style={{ fontSize: isMobile ? "11px" : "13px" }}>{tab.icon}</span>
             {!isMobile && tab.label}
           </button>
         ))}
@@ -314,36 +329,42 @@ const PackControllerSystemMetrics = ({
           minHeight: 0,
         }}
       >
-        <div style={{ padding: "0 4px" }}>
-          {tabData.map((metric, index) => (
-            <MetricItem
-              key={index}
-              label={metric.label}
-              value={metric.value}
-              unit={metric.unit || ""}
-              limits={metric.limits || ""}
-              status={metric.status || "normal"}
-              icon={metric.icon || ""}
-            />
-          ))}
-        </div>
+        {tabData.type === "grid" ? (
+          <EssentialGrid metrics={tabData.data} />
+        ) : (
+          <div style={{ padding: "0 4px" }}>
+            {tabData.data.map((metric, index) => (
+              <CompactMetricItem
+                key={index}
+                label={metric.label}
+                value={metric.value}
+                unit={metric.unit || ""}
+                status={metric.status || "normal"}
+                icon={metric.icon || ""}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Footer Info */}
       <div
         style={{
-          marginTop: "8px",
-          padding: "8px 12px",
+          marginTop: "6px",
+          padding: "6px 8px",
           backgroundColor: colors.background,
-          borderRadius: "6px",
-          fontSize: isMobile ? "10px" : "11px",
+          borderRadius: "4px",
+          fontSize: isMobile ? "9px" : "10px",
           color: colors.textLight,
           textAlign: "center",
           flexShrink: 0,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
         }}
       >
-        Last updated: {new Date().toLocaleTimeString()} • 
-        Device: {getValue("TagID", "N/A")}
+        <span>Updated: {new Date().toLocaleTimeString()}</span>
+        <span>Device: {getValue("TagID", "N/A")}</span>
       </div>
     </div>
   );

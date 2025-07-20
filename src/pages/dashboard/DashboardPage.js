@@ -37,6 +37,7 @@ const DashboardPage = ({
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [alarmNotifications, setAlarmNotifications] = useState([]); // Added for alarm notifications
   const metricsContainerRef = useRef(null);
 
   // Battery Registration Integration
@@ -54,6 +55,41 @@ const DashboardPage = ({
   }, []);
 
   const refreshIntervalRef = useRef(null);
+
+  // Handle new alarm notifications
+  const handleNewAlarm = useCallback((alarm) => {
+    // Create notification
+    const notification = {
+      id: Date.now() + Math.random(),
+      alarm,
+      timestamp: new Date(),
+    };
+
+    setAlarmNotifications(prev => [...prev, notification]);
+
+    // Show toast notification
+    toast.error(
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <span style={{ fontSize: "20px", marginRight: "8px" }}>
+          {alarm.severity === "critical" ? "🚨" : "⚠️"}
+        </span>
+        <div>
+          <strong>{alarm.description}</strong>
+          <br />
+          <small>Severity: {alarm.severity.toUpperCase()}</small>
+        </div>
+      </div>,
+      {
+        position: "top-right",
+        autoClose: alarm.severity === "critical" ? false : 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        toastId: `alarm-${alarm.key}`, // Prevent duplicate notifications
+      }
+    );
+  }, []);
 
   // Function to fetch the latest data based on data type
   const fetchLatestData = useCallback(async () => {
@@ -361,6 +397,7 @@ const DashboardPage = ({
           RefreshButton={RefreshButton}
           isMobile={isMobile}
           activeSection={activeSection}
+          onNewAlarm={handleNewAlarm} // Pass the alarm handler
         />
       );
     }

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import PackControllerStatusCards from "../widgets/PackControllerStatusCards.js";
-import PackControllerGauges from "../widgets/PackControllerGauges.js";
 import PackControllerAlarms from "../widgets/PackControllerAlarms.js";
 import PackControllerSystemMetrics from "../widgets/PackControllerSystemMetrics.js";
 import PackControllerAlarmHistory from "../widgets/PackControllerAlarmHistory.js";
@@ -11,7 +10,8 @@ const PackControllerView = ({
   colors, 
   RefreshButton, 
   isMobile,
-  activeSection = "overview" 
+  activeSection = "overview",
+  onNewAlarm = null
 }) => {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
@@ -82,7 +82,7 @@ const PackControllerView = ({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: isTablet ? "1fr" : "minmax(280px, 350px) 1fr",
+        gridTemplateColumns: isTablet ? "1fr" : "2fr 1fr", // Changed to give more space to status
         gridTemplateRows: isTablet ? "auto auto" : "1fr",
         gap: getResponsiveValue(8, 16),
         height: "100%",
@@ -92,7 +92,7 @@ const PackControllerView = ({
         overflow: "hidden",
       }}
     >
-      {/* Left Section - Status and Alarms */}
+      {/* Left Section - Expanded Status Cards */}
       <div
         style={{
           display: "flex",
@@ -103,7 +103,7 @@ const PackControllerView = ({
           overflow: "hidden",
         }}
       >
-        {/* Pack Controller Status Section */}
+        {/* Pack Controller Status Section - Now Full Width */}
         <div
           style={{
             backgroundColor: colors.white,
@@ -112,10 +112,8 @@ const PackControllerView = ({
             boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
             display: "flex",
             flexDirection: "column",
-            flex: "0 0 auto",
-            height: isTablet ? "auto" : "45%",
-            maxHeight: isTablet ? "none" : "350px",
-            minHeight: isMobile ? "auto" : "200px",
+            flex: "1 1 auto",
+            minHeight: isMobile ? "300px" : "400px",
             overflow: "hidden",
           }}
         >
@@ -140,7 +138,7 @@ const PackControllerView = ({
                 margin: 0,
               }}
             >
-              Pack Controller Status
+              Pack Controller Status & Metrics
             </h2>
             <RefreshButton />
           </div>
@@ -155,34 +153,13 @@ const PackControllerView = ({
               roundValue={roundValue}
               colors={colors}
               isMobile={isMobile}
+              expanded={true} // Pass expanded prop for wider layout
             />
           </div>
         </div>
-
-        {/* Active Alarms Section */}
-        <div
-          style={{
-            backgroundColor: colors.white,
-            borderRadius: "6px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
-            display: "flex",
-            flexDirection: "column",
-            flex: "1 1 auto",
-            minHeight: isMobile ? "250px" : "200px",
-            maxHeight: isTablet ? "400px" : "400px",
-            overflow: "hidden",
-          }}
-        >
-          <PackControllerAlarms
-            packControllerState={packControllerState}
-            activeAlarms={activeAlarms}
-            colors={colors}
-            isMobile={isMobile}
-          />
-        </div>
       </div>
 
-      {/* Right Section - Metrics and Performance */}
+      {/* Right Section - Alarms and System Metrics */}
       <div
         style={{
           display: "flex",
@@ -193,50 +170,31 @@ const PackControllerView = ({
           overflow: "hidden",
         }}
       >
-        {/* Performance Gauges */}
+        {/* Active Alarms Section */}
         <div
           style={{
             backgroundColor: colors.white,
             borderRadius: "6px",
-            padding: getResponsiveValue(12, 16),
             boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
             display: "flex",
             flexDirection: "column",
             flex: "0 0 auto",
-            minHeight: isMobile ? "250px" : "200px",
-            maxHeight: isTablet ? "350px" : "350px",
+            minHeight: isMobile ? "250px" : "300px",
+            maxHeight: isTablet ? "350px" : "400px",
             overflow: "hidden",
           }}
         >
-          <h2
-            style={{
-              color: colors.textDark,
-              marginBottom: getResponsiveValue(8, 12),
-              fontWeight: "600",
-              fontSize: getResponsiveValue(14, 18),
-              paddingBottom: getResponsiveValue(8, 12),
-              borderBottom: `1px solid ${colors.lightGrey}`,
-              flexShrink: 0,
-            }}
-          >
-            Performance Metrics
-          </h2>
-          <div style={{ 
-            flex: 1, 
-            overflow: "hidden",
-            minHeight: 0,
-            maxHeight: "100%",
-          }}>
-            <PackControllerGauges
-              packControllerState={packControllerState}
-              roundValue={roundValue}
-              colors={colors}
-              isMobile={isMobile}
-            />
-          </div>
+          <PackControllerAlarms
+            packControllerState={packControllerState}
+            activeAlarms={activeAlarms}
+            colors={colors}
+            isMobile={isMobile}
+            showHistory={true}
+            onNewAlarm={onNewAlarm}
+          />
         </div>
 
-        {/* System Metrics */}
+        {/* System Metrics - Compact */}
         <div
           style={{
             backgroundColor: colors.white,
@@ -246,8 +204,7 @@ const PackControllerView = ({
             display: "flex",
             flexDirection: "column",
             flex: "1 1 auto",
-            minHeight: isMobile ? "300px" : "250px",
-            maxHeight: isTablet ? "400px" : "600px",
+            minHeight: isMobile ? "200px" : "250px",
             overflow: "hidden",
           }}
         >
@@ -275,6 +232,7 @@ const PackControllerView = ({
               roundValue={roundValue}
               colors={colors}
               isMobile={isMobile}
+              compact={true} // Add compact prop
             />
           </div>
         </div>
