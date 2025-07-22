@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import DataViewer from "./components/DataViewer.js";
-import { fetchData } from "../../queries.js";
+import { fetchData, testBatteryConnection } from "../../queries.js";
 
 // Battery Registration Integration
 import BatterySelector from "../../components/common/BatterySelector.js";
@@ -32,9 +32,11 @@ const DataAnalyticsPage = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 0, message: "" });
+  const [hasStartedAnalysis, setHasStartedAnalysis] = useState(false);
 
   // Battery Registration Integration
-  const { getCurrentBatteryId, selectedBattery, hasRegisteredBatteries } = useBatteryContext();
+  const { getCurrentBatteryId, selectedBattery, hasRegisteredBatteries, setBatteryById } = useBatteryContext();
 
   const timeRanges = [
     { label: "Last 1 Minute", value: "1min" },
@@ -46,7 +48,8 @@ const DataAnalyticsPage = () => {
     { label: "Last 1 Month", value: "1month" },
   ];
 
-  const handleFetchData = async () => {
+  // Main data fetching function
+  const handleFetchData = useCallback(async () => {
     // Get current battery ID from context
     const currentBatteryId = getCurrentBatteryId();
     
@@ -55,27 +58,97 @@ const DataAnalyticsPage = () => {
       return;
     }
 
-    // Remove the "0x" prefix if present for the API call
-    const tagId = currentBatteryId.replace(/^0x/, "");
+    // Keep the "0x" prefix - don't remove it
+    const tagId = currentBatteryId;
 
     setLoading(true);
     setError(null);
-    setData(null);
+    setLoadingProgress({ current: 0, total: 0, message: "Initializing..." });
+    setHasStartedAnalysis(true);
 
     try {
-      console.log("Fetching data for battery:", tagId, "time range:", selectedTimeRange);
-      const fetchedData = await fetchData(tagId, selectedTimeRange);
+      console.log("=== FETCH DATA DEBUG ===");
+      console.log("Original currentBatteryId:", currentBatteryId);
+      console.log("tagId being passed to fetchData:", tagId);
+      console.log("Selected time range:", selectedTimeRange);
+      console.log("========================");
+      
+      // Create progress callback for progressive plotting
+      const progressCallback = (progress) => {
+        setLoadingProgress(progress);
+        
+        // Progressive plotting: Update display with partial data as it comes in
+        if (progress.partialData) {
+          setData(progress.partialData);
+        }
+      };
+      
+      const fetchedData = await fetchData(tagId, selectedTimeRange, progressCallback);
       setData(fetchedData);
+      setLoadingProgress({ current: 100, total: 100, message: "Complete!" });
     } catch (error) {
       console.error("Error fetching data:", error);
       setError("Failed to fetch data. Please try again.");
+      setLoadingProgress({ current: 0, total: 0, message: "" });
     } finally {
       setLoading(false);
     }
+  }, [getCurrentBatteryId, selectedTimeRange]);
+
+  // Handle battery change without refresh
+  const handleBatteryChange = useCallback(async (newBatteryId) => {
+    if (!newBatteryId) return;
+    
+    try {
+      // Update battery context
+      setBatteryById(newBatteryId);
+      
+      // Auto-fetch data for new battery if we've already started analysis
+      if (hasStartedAnalysis) {
+        // Clear current data to show loading state
+        setData(null);
+        setError(null);
+        
+        // Small delay to allow context to update
+        setTimeout(() => {
+          handleFetchData();
+        }, 100);
+      }
+    } catch (error) {
+      console.error("Error changing battery:", error);
+      setError("Failed to switch battery. Please try again.");
+    }
+  }, [hasStartedAnalysis, handleFetchData, setBatteryById]);
+
+  // Handle time range change without refresh
+  const handleTimeRangeChange = useCallback(async (newTimeRange) => {
+    setSelectedTimeRange(newTimeRange);
+    
+    // Auto-fetch data for new time range if we've already started analysis
+    if (hasStartedAnalysis) {
+      // Clear current data to show loading state
+      setData(null);
+      setError(null);
+      
+      // Small delay to allow state to update
+      setTimeout(() => {
+        handleFetchData();
+      }, 100);
+    }
+  }, [hasStartedAnalysis, handleFetchData]);
+
+  const handleTestConnection = async () => {
+    const currentBatteryId = getCurrentBatteryId();
+    if (!currentBatteryId) {
+      console.log("No battery selected for testing");
+      return;
+    }
+    
+    await testBatteryConnection(currentBatteryId);
   };
 
-  // If we have data, show the grid layout
-  if (data || loading || error) {
+  // If we have started analysis or have data/loading/error, show the viewer
+  if (hasStartedAnalysis) {
     return (
       <DataViewer
         loading={loading}
@@ -83,7 +156,10 @@ const DataAnalyticsPage = () => {
         data={data}
         selectedTagId={getCurrentBatteryId()}
         onFetchData={handleFetchData}
-        // Remove baseIds prop since we're using battery registration
+        loadingProgress={loadingProgress}
+        onBatteryChange={handleBatteryChange}
+        onTimeRangeChange={handleTimeRangeChange}
+        currentTimeRange={selectedTimeRange}
       />
     );
   }
@@ -146,7 +222,7 @@ const DataAnalyticsPage = () => {
               }}
             >
               {hasRegisteredBatteries 
-                ? "Select time range to analyze your battery performance" 
+                ? "Select time range to analyze your battery performance with progressive loading" 
                 : "Please register a battery first to access analytics"
               }
             </p>
@@ -230,39 +306,71 @@ const DataAnalyticsPage = () => {
                 </div>
 
                 <div style={{ textAlign: "center" }}>
-                  <button
-                    onClick={handleFetchData}
-                    disabled={!selectedBattery}
-                    style={{
-                      padding: "16px 32px",
-                      backgroundColor: selectedBattery ? colors.accent : colors.secondary,
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "8px",
-                      cursor: selectedBattery ? "pointer" : "not-allowed",
-                      fontSize: "1.1rem",
-                      fontWeight: "700",
-                      transition: "all 0.3s ease",
-                      boxShadow: selectedBattery ? "0 4px 8px rgba(0,0,0,0.1)" : "none",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                      opacity: selectedBattery ? 1 : 0.6,
-                    }}
-                    onMouseOver={(e) => {
-                      if (selectedBattery) {
-                        e.target.style.backgroundColor = colors.primary;
-                        e.target.style.transform = "translateY(-2px)";
-                      }
-                    }}
-                    onMouseOut={(e) => {
-                      if (selectedBattery) {
-                        e.target.style.backgroundColor = colors.accent;
-                        e.target.style.transform = "translateY(0)";
-                      }
-                    }}
-                  >
-                    Analyze Data
-                  </button>
+                  <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+                    <button
+                      onClick={handleFetchData}
+                      disabled={!selectedBattery}
+                      style={{
+                        padding: "16px 32px",
+                        backgroundColor: selectedBattery ? colors.accent : colors.secondary,
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "8px",
+                        cursor: selectedBattery ? "pointer" : "not-allowed",
+                        fontSize: "1.1rem",
+                        fontWeight: "700",
+                        transition: "all 0.3s ease",
+                        boxShadow: selectedBattery ? "0 4px 8px rgba(0,0,0,0.1)" : "none",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        opacity: selectedBattery ? 1 : 0.6,
+                      }}
+                      onMouseOver={(e) => {
+                        if (selectedBattery) {
+                          e.target.style.backgroundColor = colors.primary;
+                          e.target.style.transform = "translateY(-2px)";
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (selectedBattery) {
+                          e.target.style.backgroundColor = colors.accent;
+                          e.target.style.transform = "translateY(0)";
+                        }
+                      }}
+                    >
+                      Start Progressive Analysis
+                    </button>
+                    
+                    {selectedBattery && (
+                      <button
+                        onClick={handleTestConnection}
+                        style={{
+                          padding: "16px 24px",
+                          backgroundColor: colors.primary,
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "8px",
+                          cursor: "pointer",
+                          fontSize: "0.9rem",
+                          fontWeight: "600",
+                          transition: "all 0.3s ease",
+                          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                        onMouseOver={(e) => {
+                          e.target.style.backgroundColor = colors.textDark;
+                          e.target.style.transform = "translateY(-1px)";
+                        }}
+                        onMouseOut={(e) => {
+                          e.target.style.backgroundColor = colors.primary;
+                          e.target.style.transform = "translateY(0)";
+                        }}
+                      >
+                        Test Connection
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div
@@ -282,20 +390,50 @@ const DataAnalyticsPage = () => {
                       margin: "0 0 8px 0",
                     }}
                   >
-                    What you'll see:
+                    ⚡ Progressive Features:
                   </h3>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textLight,
-                      margin: 0,
-                      lineHeight: "1.5",
-                    }}
-                  >
-                    Interactive grid dashboard with cell data, pack information,
-                    temperature readings, SOC metrics, and real-time trend analysis
-                    for comprehensive battery monitoring.
-                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <p
+                      style={{
+                        fontSize: "0.9rem",
+                        color: colors.textLight,
+                        margin: 0,
+                        lineHeight: "1.4",
+                      }}
+                    >
+                      📊 <strong>Real-time plotting</strong> - Charts update as data loads
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "0.9rem",
+                        color: colors.textLight,
+                        margin: 0,
+                        lineHeight: "1.4",
+                      }}
+                    >
+                      🔄 <strong>Dynamic controls</strong> - Switch battery/time range without refresh
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "0.9rem",
+                        color: colors.textLight,
+                        margin: 0,
+                        lineHeight: "1.4",
+                      }}
+                    >
+                      ⚡ <strong>Smart sampling</strong> - Optimized for performance with large datasets
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "0.9rem",
+                        color: colors.textLight,
+                        margin: 0,
+                        lineHeight: "1.4",
+                      }}
+                    >
+                      📈 <strong>Progressive loading</strong> - See results immediately, no waiting
+                    </p>
+                  </div>
                 </div>
 
                 {selectedBattery && (
@@ -316,7 +454,7 @@ const DataAnalyticsPage = () => {
                         fontWeight: "600",
                       }}
                     >
-                      Ready to analyze:
+                      Ready for progressive analysis:
                     </p>
                     <p
                       style={{
@@ -328,6 +466,16 @@ const DataAnalyticsPage = () => {
                       }}
                     >
                       {selectedBattery.nickname || selectedBattery.serialNumber} ({selectedBattery.batteryId})
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "0.8rem",
+                        color: colors.textLight,
+                        margin: "4px 0 0 0",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      Data will plot progressively as it loads. You can switch settings dynamically after analysis starts.
                     </p>
                   </div>
                 )}
@@ -362,7 +510,7 @@ const DataAnalyticsPage = () => {
                   lineHeight: "1.5",
                 }}
               >
-                You need to register at least one battery before you can access data analytics.
+                You need to register at least one battery before you can access progressive data analytics.
               </p>
               <button
                 onClick={() => window.location.href = '/battery-registration'}

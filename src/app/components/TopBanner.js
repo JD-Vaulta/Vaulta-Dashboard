@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import logo from "../../logo.svg";
+import logo from "../../vaulta_logo.svg";
 import { signOut } from "aws-amplify/auth";
 import BatterySelector from "../../components/common/BatterySelector.js"
 import { useBatteryContext } from "../../contexts/BatteryContext.js";
@@ -269,179 +269,6 @@ const TopBanner = ({
         </div>
       </div>
 
-      {/* Data Type and Battery Selector Section */}
-      {hasRegisteredBatteries && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "8px 20px",
-            backgroundColor: "#f8f9fa",
-            borderBottom: "1px solid #e6e6e6",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            {/* Data Type Selector */}
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span
-                style={{
-                  color: "#666",
-                  fontWeight: "600",
-                  fontSize: "0.9rem",
-                }}
-              >
-                Data Type:
-              </span>
-              <select
-                value={dataType}
-                onChange={(e) => handleDataTypeChange(e.target.value)}
-                style={{
-                  backgroundColor: "white",
-                  border: "1px solid #ddd",
-                  borderRadius: "5px",
-                  fontSize: "0.9rem",
-                  padding: "6px 10px",
-                  cursor: "pointer",
-                  fontWeight: "500",
-                }}
-              >
-                <option value="battery">Battery Data</option>
-                <option value="packcontroller">Pack Controller</option>
-              </select>
-            </div>
-
-            {/* Battery Selector - Only show for battery data type */}
-            {dataType === "battery" && (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span
-                  style={{
-                    color: "#666",
-                    fontWeight: "600",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  Active Battery:
-                </span>
-                <BatterySelector
-                  style={{
-                    backgroundColor: "white",
-                    border: "1px solid #ddd",
-                    fontSize: "0.9rem",
-                    padding: "6px 10px",
-                  }}
-                  showAddButton={false}
-                  compact={true}
-                />
-              </div>
-            )}
-
-            {/* Pack Controller Info - Show for pack controller data type */}
-            {dataType === "packcontroller" && (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span
-                  style={{
-                    color: "#666",
-                    fontWeight: "600",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  Pack Controller:
-                </span>
-                <div
-                  style={{
-                    backgroundColor: "white",
-                    border: "1px solid #ddd",
-                    borderRadius: "5px",
-                    fontSize: "0.9rem",
-                    padding: "6px 10px",
-                    fontWeight: "500",
-                    color: "#333",
-                  }}
-                >
-                  {tagId}
-                </div>
-              </div>
-            )}
-          </div>
-          
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            {dataType === "battery" && selectedBattery && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  color: "#666",
-                  fontSize: "0.85rem",
-                }}
-              >
-                <span>
-                  {selectedBattery.nickname || selectedBattery.serialNumber}
-                </span>
-                <span
-                  style={{
-                    backgroundColor: "#4CAF50",
-                    color: "white",
-                    padding: "2px 6px",
-                    borderRadius: "10px",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                  }}
-                >
-                  {batteryCount} registered
-                </span>
-              </div>
-            )}
-
-            {dataType === "packcontroller" && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  color: "#666",
-                  fontSize: "0.85rem",
-                }}
-              >
-                <span
-                  style={{
-                    backgroundColor: "#FF9800",
-                    color: "white",
-                    padding: "2px 6px",
-                    borderRadius: "10px",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                  }}
-                >
-                  Pack Controller Active
-                </span>
-              </div>
-            )}
-            
-            <button
-              onClick={() => navigate("/battery-management")}
-              style={{
-                padding: "6px 12px",
-                backgroundColor: "#2196F3",
-                color: "white",
-                border: "none",
-                borderRadius: "5px",
-                fontSize: "0.85rem",
-                fontWeight: "600",
-                cursor: "pointer",
-                transition: "background-color 0.2s ease",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              }}
-              onMouseOver={(e) => e.target.style.backgroundColor = "#1976D2"}
-              onMouseOut={(e) => e.target.style.backgroundColor = "#2196F3"}
-            >
-              Manage Batteries
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Navigation and Tab Controls */}
       <div
         style={{
@@ -493,7 +320,7 @@ const TopBanner = ({
                 }}
               >
                 {isBatteryManagement && (
-                  <span style={{ marginRight: "6px" }}>🔋</span>
+                  <span style={{ marginRight: "6px" }}> </span>
                 )}
                 {item.label}
               </button>
