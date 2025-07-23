@@ -1,5 +1,4 @@
-import React, { useState, useMemo } from "react";
-// At the top of the file, replace the import:
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   LineChart,
   Line,
@@ -7,17 +6,12 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
   ResponsiveContainer,
-  ReferenceLine,
 } from "recharts";
 
 // Battery Registration Integration
 import { useBatteryContext } from "../../../contexts/BatteryContext.js";
+import { detectBatteryType } from "../../../queries.js";
 
 const colors = {
   edward: "#adaead",
@@ -77,6 +71,198 @@ const sampleTemperatureData = (temperatureData, maxPointsPerSensor = 200) => {
   return sampledTempData;
 };
 
+// Transform PackController data for charts
+const transformPackControllerData = (systemData, metric) => {
+  if (!systemData || !systemData[metric] || !systemData[metric].values) {
+    return [{ time: 1, value: 0 }];
+  }
+
+  const values = systemData[metric].values;
+  const timestamps = systemData[metric].timestamps;
+
+  const transformedData = values.map((value, index) => ({
+    time: timestamps[index] || index + 1,
+    value: value,
+    formattedTime: timestamps[index] ? new Date(timestamps[index] * 1000).toLocaleTimeString() : `Point ${index + 1}`
+  }));
+
+  return transformedData.length > 0 ? transformedData : [{ time: 1, value: 0 }];
+};
+
+// Calculate min/max values for a dataset
+const calculateMinMax = (data) => {
+  if (!data || data.length === 0) {
+    return { min: 0, max: 0 };
+  }
+
+  const values = data.map(item => item.value).filter(val => val !== null && val !== undefined);
+  if (values.length === 0) {
+    return { min: 0, max: 0 };
+  }
+
+  return {
+    min: Math.min(...values),
+    max: Math.max(...values)
+  };
+};
+
+// PackController Chart Component - Updated with clean design and min/max
+const PackControllerChart = ({ data, metric, title, unit, color, showMinMax = true }) => {
+  const chartData = useMemo(() => {
+    return transformPackControllerData(data, metric);
+  }, [data, metric]);
+
+  const minMaxData = useMemo(() => {
+    return calculateMinMax(chartData);
+  }, [chartData]);
+
+  const currentValue = chartData[chartData.length - 1]?.value || 0;
+
+  return (
+    <div
+      style={{
+        backgroundColor: "#fff",
+        borderRadius: "clamp(4px, 1vw, 12px)",
+        padding: "clamp(8px, 2vw, 20px)",
+        border: `1px solid ${colors.secondary}`,
+        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+        minWidth: "0",
+        minHeight: "200px",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+      }}
+    >
+      <div style={{ 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "flex-start", 
+        marginBottom: "clamp(4px, 1vw, 10px)" 
+      }}>
+        <h3
+          style={{
+            fontWeight: "600",
+            color: colors.textDark,
+            margin: 0,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            fontSize: "clamp(0.8rem, 1.5vw, 1.1rem)",
+            flex: 1,
+          }}
+        >
+          {title}
+        </h3>
+        
+        {/* Current value indicator */}
+        <div style={{
+          fontSize: "clamp(0.6rem, 1vw, 0.8rem)",
+          color: colors.textLight,
+          backgroundColor: "rgba(255,255,255,0.9)",
+          padding: "2px 6px",
+          borderRadius: "4px",
+          border: `1px solid ${colors.secondary}30`,
+          whiteSpace: "nowrap",
+        }}>
+          {currentValue.toFixed(2)}{unit}
+        </div>
+      </div>
+      
+      <div style={{ flex: 1, minHeight: "150px" }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke={colors.secondary} />
+            <XAxis
+              dataKey="time"
+              stroke={colors.textLight}
+              fontSize="clamp(8px, 1.5vw, 12px)"
+              type="number"
+              scale="time"
+              domain={['dataMin', 'dataMax']}
+              tickFormatter={(value) => new Date(value * 1000).toLocaleTimeString()}
+            />
+            <YAxis
+              stroke={colors.textLight}
+              fontSize="clamp(8px, 1.5vw, 12px)"
+              tickFormatter={(value) => `${value}${unit}`}
+            />
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (active && payload && payload.length) {
+                  return (
+                    <div
+                      style={{
+                        backgroundColor: colors.backgroundSolid,
+                        border: `1px solid ${colors.secondary}`,
+                        borderRadius: "6px",
+                        padding: "8px",
+                        color: colors.textDark,
+                        fontSize: "clamp(8px, 1.5vw, 12px)",
+                      }}
+                    >
+                      <p style={{ margin: "0 0 4px 0", fontWeight: "bold" }}>
+                        {new Date(label * 1000).toLocaleString()}
+                      </p>
+                      <p style={{ margin: "0 0 2px 0" }}>
+                        {`${title}: ${payload[0].value?.toFixed(2)}${unit}`}
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke={color}
+              strokeWidth={2}
+              dot={false}
+              connectNulls={false}
+              activeDot={{ r: 4, stroke: color, strokeWidth: 2, fill: '#fff' }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      
+      {/* Min/Max indicators */}
+      {showMinMax && (
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: "8px",
+          fontSize: "clamp(0.5rem, 0.8vw, 0.7rem)",
+          color: colors.textLight,
+        }}>
+          <div style={{ 
+            display: "flex", 
+            alignItems: "center", 
+            gap: "4px",
+            backgroundColor: colors.background,
+            padding: "2px 6px",
+            borderRadius: "4px",
+          }}>
+            <span style={{ color: colors.error }}>↓</span>
+            <span>Min: {minMaxData.min.toFixed(2)}{unit}</span>
+          </div>
+          <div style={{ 
+            display: "flex", 
+            alignItems: "center", 
+            gap: "4px",
+            backgroundColor: colors.background,
+            padding: "2px 6px",
+            borderRadius: "4px",
+          }}>
+            <span style={{ color: colors.accent }}>↑</span>
+            <span>Max: {minMaxData.max.toFixed(2)}{unit}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const DataViewer = ({
   loading,
   error,
@@ -87,13 +273,71 @@ const DataViewer = ({
   onBatteryChange,
   onTimeRangeChange,
   currentTimeRange,
+  batteryType: propBatteryType,
+  availableBatteries = []
 }) => {
   const [selectedNode, setSelectedNode] = useState("Node0");
   const [selectedParameter, setSelectedParameter] = useState("Temperature");
-  const [showControls, setShowControls] = useState(true);
 
   // Battery Registration Integration
   const { selectedBattery, hasRegisteredBatteries, getCurrentBatteryId } = useBatteryContext();
+
+  // Detect battery type
+  const detectedBatteryType = useMemo(() => {
+    if (propBatteryType) return propBatteryType;
+    if (selectedTagId) return detectBatteryType(selectedTagId);
+    if (data && data.type) return data.type;
+    return 'BMS';
+  }, [propBatteryType, selectedTagId, data]);
+
+  // Clear cache on battery/time change
+  useEffect(() => {
+    return () => {
+      // Memory cleanup
+      if (window.gc) window.gc();
+    };
+  }, [selectedTagId, currentTimeRange]);
+
+  // Debug effect to track selectedTagId changes
+  useEffect(() => {
+    console.log("=== DATAVIEWER PROPS CHANGE ===");
+    console.log("selectedTagId changed to:", selectedTagId);
+    console.log("propBatteryType:", propBatteryType);
+    console.log("detectedBatteryType:", detectedBatteryType);
+    console.log("availableBatteries:", availableBatteries.length, "batteries");
+    console.log("===============================");
+  }, [selectedTagId, propBatteryType, detectedBatteryType, availableBatteries]);
+
+  // Handle internal battery change
+  const handleInternalBatteryChange = useCallback((newBatteryId) => {
+    console.log("=== DATAVIEWER BATTERY CHANGE ===");
+    console.log("New Battery ID:", newBatteryId);
+    console.log("Current selectedTagId:", selectedTagId);
+    console.log("Available batteries:", availableBatteries);
+    console.log("PropBatteryType:", propBatteryType);
+    console.log("DetectedBatteryType:", detectedBatteryType);
+    
+    // Prevent unnecessary calls if the same battery is selected
+    if (newBatteryId === selectedTagId) {
+      console.log("Same battery selected, skipping change");
+      console.log("=== END DATAVIEWER BATTERY CHANGE ===");
+      return;
+    }
+    
+    // Clear any error states immediately when switching
+    if (error) {
+      console.log("Clearing error state on battery change");
+    }
+    
+    // Call the parent's onBatteryChange function
+    if (onBatteryChange) {
+      console.log("Calling parent onBatteryChange with:", newBatteryId);
+      onBatteryChange(newBatteryId);
+    } else {
+      console.log("ERROR: onBatteryChange is not provided!");
+    }
+    console.log("=== END DATAVIEWER BATTERY CHANGE ===");
+  }, [onBatteryChange, selectedTagId, availableBatteries, propBatteryType, detectedBatteryType, error]);
 
   // Time ranges for the selector
   const timeRanges = [
@@ -106,21 +350,27 @@ const DataViewer = ({
     { label: "Last 1 Month", value: "1month" },
   ];
 
-  // Optimized data processing with sampling
+  // Optimized data processing with sampling - only for BMS data
   const processedData = useMemo(() => {
     if (!data || typeof data !== "object") {
       return {
+        type: 'BMS',
         Node0: { voltage: { cellVoltages: [] }, temperature: {} },
         Node1: { voltage: { cellVoltages: [] }, temperature: {} },
-        Pack: {},
-        Cell: {},
-        Temperature: {},
-        SOC: {},
+        Cell: { maxCellVoltage: 0, minCellVoltage: 0, thresholdOverVoltage: 0, thresholdUnderVoltage: 0 },
+        Temperature: { maxCellTemp: 0, minCellTemp: 0, thresholdOverTemp: 0, thresholdUnderTemp: 0, maxCellTempNode: 0, minCellTempNode: 0 },
+        SOC: { socPercent: 0, balanceSOCPercent: 0 },
       };
     }
 
-    // Sample the data intelligently to prevent overwhelming the UI
+    // If it's PackController data, return as-is
+    if (data.type === 'PACK_CONTROLLER' || detectedBatteryType === 'PACK_CONTROLLER') {
+      return data;
+    }
+
+    // Sample the BMS data intelligently to prevent overwhelming the UI
     const sampledData = {
+      type: 'BMS',
       Node0: {
         voltage: {
           cellVoltages: data.Node0?.voltage?.cellVoltages 
@@ -141,14 +391,13 @@ const DataViewer = ({
           ? sampleTemperatureData(data.Node1.temperature)
           : {}
       },
-      Pack: data.Pack || {},
-      Cell: data.Cell || {},
-      Temperature: data.Temperature || {},
-      SOC: data.SOC || {},
+      Cell: data.Cell || { maxCellVoltage: 0, minCellVoltage: 0, thresholdOverVoltage: 0, thresholdUnderVoltage: 0 },
+      Temperature: data.Temperature || { maxCellTemp: 0, minCellTemp: 0, thresholdOverTemp: 0, thresholdUnderTemp: 0, maxCellTempNode: 0, minCellTempNode: 0 },
+      SOC: data.SOC || { socPercent: 0, balanceSOCPercent: 0 },
     };
 
     return sampledData;
-  }, [data]);
+  }, [data, detectedBatteryType]);
 
   // Helper function to safely extract value
   const safeExtractValue = (value) => {
@@ -195,7 +444,7 @@ const DataViewer = ({
               fontWeight: "600",
             }}
           >
-            Loading Battery Data
+            Loading {detectedBatteryType === 'PACK_CONTROLLER' ? 'Pack Controller' : 'Battery'} Data
           </h2>
           
           {/* Spinner */}
@@ -259,38 +508,39 @@ const DataViewer = ({
             </div>
           )}
 
-          {/* Battery Info */}
-          {selectedBattery && (
-            <div
+          {/* Battery/Controller Info */}
+          <div
+            style={{
+              backgroundColor: colors.background,
+              borderRadius: "8px",
+              padding: "12px",
+              border: `1px solid ${colors.secondary}`,
+            }}
+          >
+            <p
               style={{
-                backgroundColor: colors.background,
-                borderRadius: "8px",
-                padding: "12px",
-                border: `1px solid ${colors.secondary}`,
+                color: colors.textLight,
+                fontSize: "0.9rem",
+                margin: "0 0 4px 0",
               }}
             >
-              <p
-                style={{
-                  color: colors.textLight,
-                  fontSize: "0.9rem",
-                  margin: "0 0 4px 0",
-                }}
-              >
-                Analyzing Battery:
-              </p>
-              <p
-                style={{
-                  color: colors.textDark,
-                  fontSize: "1rem",
-                  fontWeight: "600",
-                  fontFamily: "monospace",
-                  margin: 0,
-                }}
-              >
-                {selectedBattery.nickname || selectedBattery.serialNumber} ({selectedBattery.batteryId})
-              </p>
-            </div>
-          )}
+              Analyzing {detectedBatteryType === 'PACK_CONTROLLER' ? 'Pack Controller' : 'Battery'}:
+            </p>
+            <p
+              style={{
+                color: colors.textDark,
+                fontSize: "1rem",
+                fontWeight: "600",
+                fontFamily: "monospace",
+                margin: 0,
+              }}
+            >
+              {detectedBatteryType === 'PACK_CONTROLLER' 
+                ? 'Pack Controller (0700)'
+                : (selectedBattery ? `${selectedBattery.nickname || selectedBattery.serialNumber} (${selectedBattery.batteryId})` : selectedTagId)
+              }
+            </p>
+          </div>
         </div>
 
         {/* CSS for spinner animation */}
@@ -361,6 +611,255 @@ const DataViewer = ({
     );
   }
 
+  // PackController-specific rendering
+  if (detectedBatteryType === 'PACK_CONTROLLER') {
+    // Only render PackController UI if battery type is PackController
+    // This prevents errors when switching from BMS to PackController
+    if (processedData.type === 'PACK_CONTROLLER' || !data) {
+      return (
+        <>
+          {/* Responsive CSS Styles */}
+          <style>{`
+            .pack-controller-container {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              grid-template-rows: auto repeat(2, 300px);
+              gap: clamp(8px, 2vw, 20px);
+              min-height: 80vh;
+              padding: clamp(8px, 2vw, 24px);
+              background-color: ${colors.backgroundSolid};
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+
+            .pack-controller-header {
+              grid-column: 1 / -1;
+              background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+              border-radius: 12px;
+              padding: 16px 24px;
+              border: 1px solid ${colors.secondary};
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              flex-wrap: wrap;
+              gap: 16px;
+            }
+
+            @media (max-width: 1200px) {
+              .pack-controller-container {
+                grid-template-columns: repeat(2, 1fr);
+                gap: clamp(6px, 1.5vw, 16px);
+              }
+            }
+
+            @media (max-width: 768px) {
+              .pack-controller-container {
+                grid-template-columns: 1fr;
+                gap: clamp(4px, 1vw, 12px);
+              }
+            }
+
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+
+          <div className="pack-controller-container">
+            {/* Header */}
+            <div className="pack-controller-header">
+              <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                <h1
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "700",
+                    color: colors.textDark,
+                    margin: 0,
+                  }}
+                >
+                  Pack Controller Analytics
+                </h1>
+                
+                {/* Progressive Loading Indicator */}
+                {loading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                        border: `2px solid ${colors.secondary}`,
+                        borderTop: `2px solid ${colors.accent}`,
+                        borderRadius: "50%",
+                        animation: "spin 1s linear infinite",
+                      }}
+                    />
+                    <span style={{ color: colors.textLight, fontSize: "0.9rem" }}>
+                      {loadingProgress?.message || "Loading..."}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                {/* Battery/Controller Selector */}
+                <select
+                  value={selectedTagId || ""}
+                  onChange={(e) => handleInternalBatteryChange(e.target.value)}
+                  disabled={loading}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    border: `1px solid ${colors.secondary}`,
+                    fontSize: "0.9rem",
+                    backgroundColor: "#fff",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading ? 0.7 : 1,
+                  }}
+                >
+                  <option value="">Select Device</option>
+                  {availableBatteries.map((battery) => (
+                    <option key={battery.id} value={battery.id}>
+                      {battery.name} {battery.type === 'PACK_CONTROLLER' ? '(Controller)' : '(Battery)'}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Time Range Selector */}
+                <select
+                  value={currentTimeRange || "1hour"}
+                  onChange={(e) => {
+                    console.log("=== DATAVIEWER TIME RANGE CHANGE (PC) ===");
+                    console.log("New time range:", e.target.value);
+                    console.log("Current time range:", currentTimeRange);
+                    if (onTimeRangeChange) {
+                      onTimeRangeChange(e.target.value);
+                    } else {
+                      console.log("ERROR: onTimeRangeChange is not provided!");
+                    }
+                    console.log("=== END DATAVIEWER TIME RANGE CHANGE (PC) ===");
+                  }}
+                  disabled={loading}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    border: `1px solid ${colors.secondary}`,
+                    fontSize: "0.9rem",
+                    backgroundColor: "#fff",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading ? 0.7 : 1,
+                  }}
+                >
+                  {timeRanges.map((range) => (
+                    <option key={range.value} value={range.value}>
+                      {range.label}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Refresh Button */}
+                <button
+                  onClick={onFetchData}
+                  disabled={loading}
+                  style={{
+                    padding: "8px 16px",
+                    backgroundColor: colors.accent,
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    fontSize: "0.9rem",
+                    fontWeight: "600",
+                    opacity: loading ? 0.7 : 1,
+                  }}
+                >
+                  {loading ? "Loading..." : "Refresh"}
+                </button>
+
+                {/* Data Info */}
+                {data && !loading && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ color: colors.textLight, fontSize: "0.8rem" }}>
+                      Pack Controller
+                    </span>
+                    <span style={{ 
+                      backgroundColor: '#4169E1', 
+                      color: "white", 
+                      padding: "2px 8px", 
+                      borderRadius: "12px", 
+                      fontSize: "0.7rem",
+                      fontWeight: "600"
+                    }}>
+                      LIVE
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Only show charts if we have PackController data or if loading */}
+            {(processedData.type === 'PACK_CONTROLLER' && processedData.System) ? (
+              <>
+                {/* System Temperature Chart */}
+                <PackControllerChart
+                  data={processedData.System}
+                  metric="systemTemp"
+                  title="System Temperature"
+                  unit="°C"
+                  color={colors.thunderbird}
+                  showMinMax={true}
+                />
+
+                {/* Total Voltage Chart */}
+                <PackControllerChart
+                  data={processedData.System}
+                  metric="totalVoltage"
+                  title="Total Voltage"
+                  unit="V"
+                  color={colors.primary}
+                  showMinMax={true}
+                />
+
+                {/* SOC Percent Chart */}
+                <PackControllerChart
+                  data={processedData.System}
+                  metric="socPercent"
+                  title="State of Charge"
+                  unit="%"
+                  color={colors.accent}
+                  showMinMax={true}
+                />
+
+                {/* SOH Percent Chart */}
+                <PackControllerChart
+                  data={processedData.System}
+                  metric="sohPercent"
+                  title="State of Health"
+                  unit="%"
+                  color={colors.atlantis}
+                  showMinMax={true}
+                />
+              </>
+            ) : (
+              <div style={{ 
+                gridColumn: "1 / -1", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center", 
+                minHeight: "400px",
+                color: colors.textLight,
+                fontSize: "1.2rem" 
+              }}>
+                {loading ? "Loading PackController data..." : "No PackController data available"}
+              </div>
+            )}
+          </div>
+        </>
+      );
+    }
+  }
+
+  // Get the data for the selected node and parameter with safety checks
+  // BMS-specific rendering (existing code but without Cell Data section)
   // Ensure the selected node exists
   const currentNode = processedData[selectedNode] || {
     voltage: { cellVoltages: [] },
@@ -419,46 +918,46 @@ const DataViewer = ({
       ? transformTemperatureData(nodeData.temperature)
       : transformVoltageData(nodeData.voltage);
 
-  // Cell data for charts
-  const cellData = [
-    {
-      name: `Max Cell Voltage`,
-      value: processedData.Cell.maxCellVoltage || 0,
-    },
-    {
-      name: `Min Cell Voltage`,
-      value: processedData.Cell.minCellVoltage || 0,
-    },
-  ];
-
-  const temperatureData = [
-    {
-      name: `Max Cell Temp`,
-      value: processedData.Temperature.maxCellTemp || 0,
-      node: processedData.Temperature.maxCellTempNode || 0,
-    },
-    {
-      name: `Min Cell Temp`,
-      value: processedData.Temperature.minCellTemp || 0,
-      node: processedData.Temperature.minCellTempNode || 0,
-    },
-  ];
-
-  // Extract threshold values for reference lines
-  const cellThresholds = {
-    over: processedData.Cell.thresholdOverVoltage || 0,
-    under: processedData.Cell.thresholdUnderVoltage || 0,
-  };
-
-  const temperatureThresholds = {
-    over: processedData.Temperature.thresholdOverTemp || 0,
-    under: processedData.Temperature.thresholdUnderTemp || 0,
-  };
-
-  const socData = [
-    { name: "SOC Percent", value: processedData.SOC.socPercent || 0 },
-    { name: "Balance SOC Percent", value: processedData.SOC.balanceSOCPercent || 0 },
-  ];
+  // Additional safety check: if we're in transition between battery types, show loading
+  if (loading && (!data || (data.type && data.type !== detectedBatteryType))) {
+    return (
+      <>
+        {/* CSS for spinner animation */}
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+        
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "80vh",
+            color: colors.textLight,
+            fontSize: "1.2rem",
+          }}
+        >
+          <div style={{ textAlign: "center" }}>
+            <div
+              style={{
+                width: "50px",
+                height: "50px",
+                border: `4px solid ${colors.secondary}`,
+                borderTop: `4px solid ${colors.accent}`,
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+                margin: "0 auto 20px auto",
+              }}
+            />
+            <div>Switching to {detectedBatteryType === 'BMS' ? 'Battery' : 'Pack Controller'}...</div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   const cardStyle = {
     backgroundColor: "#fff",
@@ -492,7 +991,7 @@ const DataViewer = ({
         .grid-container {
           display: grid;
           grid-template-columns: repeat(8, minmax(120px, 1fr));
-          grid-template-rows: auto repeat(4, minmax(80px, 1fr));
+          grid-template-rows: auto repeat(3, minmax(100px, 1fr));
           gap: clamp(4px, 1vw, 12px);
           min-height: 80vh;
           padding: clamp(8px, 2vw, 24px);
@@ -534,15 +1033,15 @@ const DataViewer = ({
         @media (max-width: 1400px) {
           .grid-container {
             grid-template-columns: repeat(8, minmax(100px, 1fr));
-            grid-template-rows: auto repeat(4, minmax(70px, 1fr));
+            grid-template-rows: auto repeat(3, minmax(90px, 1fr));
             gap: clamp(3px, 0.8vw, 10px);
           }
         }
 
         @media (max-width: 1200px) {
           .grid-container {
-            grid-template-columns: repeat(8, minmax(90px, 1fr));
-            grid-template-rows: auto repeat(4, minmax(60px, 1fr));
+            grid-template-columns: repeat(6, minmax(90px, 1fr));
+            grid-template-rows: auto repeat(3, minmax(80px, 1fr));
             gap: clamp(2px, 0.6vw, 8px);
           }
           
@@ -551,8 +1050,8 @@ const DataViewer = ({
 
         @media (max-width: 1000px) {
           .grid-container {
-            grid-template-columns: repeat(6, minmax(80px, 1fr));
-            grid-template-rows: auto repeat(3, minmax(50px, 1fr));
+            grid-template-columns: repeat(4, minmax(80px, 1fr));
+            grid-template-rows: auto repeat(2, minmax(70px, 1fr));
             gap: clamp(2px, 0.5vw, 6px);
           }
         }
@@ -584,7 +1083,7 @@ const DataViewer = ({
                 margin: 0,
               }}
             >
-              Data Analytics
+              Battery Data Analytics
             </h1>
             
             {/* Progressive Loading Indicator */}
@@ -608,33 +1107,43 @@ const DataViewer = ({
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-            {/* Battery Selector */}
-            {hasRegisteredBatteries && (
-              <select
-                value={getCurrentBatteryId() || ""}
-                onChange={(e) => onBatteryChange && onBatteryChange(e.target.value)}
-                disabled={loading}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: "6px",
-                  border: `1px solid ${colors.secondary}`,
-                  fontSize: "0.9rem",
-                  backgroundColor: "#fff",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  opacity: loading ? 0.7 : 1,
-                }}
-              >
-                <option value="">Select Battery</option>
-                {/* This would need to be populated from your battery context */}
-                <option value="0x400">BAT-0x400</option>
-                <option value="0x480">BAT-0x480</option>
-              </select>
-            )}
+            {/* Battery/Controller Selector */}
+            <select
+              value={selectedTagId || ""}
+              onChange={(e) => handleInternalBatteryChange(e.target.value)}
+              disabled={loading}
+              style={{
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: `1px solid ${colors.secondary}`,
+                fontSize: "0.9rem",
+                backgroundColor: "#fff",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
+              }}
+            >
+              <option value="">Select Device</option>
+              {availableBatteries.map((battery) => (
+                <option key={battery.id} value={battery.id}>
+                  {battery.name} {battery.type === 'PACK_CONTROLLER' ? '(Controller)' : '(Battery)'}
+                </option>
+              ))}
+            </select>
 
             {/* Time Range Selector */}
             <select
               value={currentTimeRange || "1hour"}
-              onChange={(e) => onTimeRangeChange && onTimeRangeChange(e.target.value)}
+              onChange={(e) => {
+                console.log("=== DATAVIEWER TIME RANGE CHANGE (BMS) ===");
+                console.log("New time range:", e.target.value);
+                console.log("Current time range:", currentTimeRange);
+                if (onTimeRangeChange) {
+                  onTimeRangeChange(e.target.value);
+                } else {
+                  console.log("ERROR: onTimeRangeChange is not provided!");
+                }
+                console.log("=== END DATAVIEWER TIME RANGE CHANGE (BMS) ===");
+              }}
               disabled={loading}
               style={{
                 padding: "8px 12px",
@@ -692,279 +1201,16 @@ const DataViewer = ({
           </div>
         </div>
 
-        {/* div4 - Cell Data with Progressive Updates */}
+        {/* Main Graph with Progressive Updates */}
         <div
           style={{
             ...cardStyle,
-            gridColumn: "span 2 / span 2",
-            gridRow: "span 2 / span 2",
-            gridRowStart: 2,
-            minWidth: "180px",
-            minHeight: "160px",
-            position: "relative",
-          }}
-        >
-          <h3
-            className="responsive-text-md"
-            style={{
-              fontWeight: "600",
-              color: colors.textDark,
-              margin: "0 0 clamp(4px, 1vw, 10px) 0",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            Cell Data
-          </h3>
-          
-          {/* Loading overlay for this specific chart */}
-          {loading && cellData.every(item => item.value === 0) && (
-            <div className="loading-overlay">
-              <div style={{ textAlign: "center", color: colors.textLight }}>
-                <div
-                  style={{
-                    width: "30px",
-                    height: "30px",
-                    border: `3px solid ${colors.secondary}`,
-                    borderTop: `3px solid ${colors.accent}`,
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite",
-                    margin: "0 auto 8px",
-                  }}
-                />
-                <div style={{ fontSize: "0.8rem" }}>Loading cell data...</div>
-              </div>
-            </div>
-          )}
-          
-          <div style={{ flex: 1, minHeight: "100px" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cellData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={colors.secondary} />
-                <XAxis
-                  dataKey="name"
-                  stroke={colors.textLight}
-                  fontSize="clamp(6px, 1.2vw, 10px)"
-                  angle={-45}
-                  textAnchor="end"
-                  interval={0}
-                />
-                <YAxis
-                  stroke={colors.textLight}
-                  fontSize="clamp(6px, 1.2vw, 10px)"
-                />
-                <Tooltip
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      return (
-                        <div
-                          style={{
-                            backgroundColor: colors.backgroundSolid,
-                            border: `1px solid ${colors.secondary}`,
-                            borderRadius: "6px",
-                            padding: "8px",
-                            color: colors.textDark,
-                            fontSize: "clamp(8px, 1.5vw, 12px)",
-                          }}
-                        >
-                          <p style={{ margin: "0 0 4px 0", fontWeight: "bold" }}>
-                            {label}
-                          </p>
-                          <p style={{ margin: "0 0 2px 0" }}>
-                            {`Value: ${payload[0].value}V`}
-                          </p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Bar dataKey="value" fill={colors.primary} />
-                {cellThresholds.over > 0 && (
-                  <ReferenceLine
-                    y={cellThresholds.over}
-                    stroke="#ff0000"
-                    strokeWidth={1}
-                    strokeDasharray="3 3"
-                  />
-                )}
-                {cellThresholds.under > 0 && (
-                  <ReferenceLine
-                    y={cellThresholds.under}
-                    stroke="#ff0000"
-                    strokeWidth={1}
-                    strokeDasharray="3 3"
-                  />
-                )}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* div5 - Pack Data with real-time updates */}
-        <div
-          style={{
-            ...cardStyle,
-            gridColumn: "span 2 / span 2",
-            gridRow: "span 2 / span 2",
-            gridColumnStart: 1,
-            gridRowStart: 4,
-            minWidth: "180px",
-            minHeight: "160px",
-            background: "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.06)",
-            border: `1px solid ${colors.secondary}40`,
-            position: "relative",
-          }}
-        >
-          <h3
-            className="responsive-text-md"
-            style={{
-              fontWeight: "700",
-              color: colors.textDark,
-              margin: "0 0 clamp(6px, 1.5vw, 12px) 0",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-              fontSize: "clamp(0.7rem, 1.4vw, 0.95rem)",
-            }}
-          >
-            Pack Data
-          </h3>
-          
-          {/* Progressive update indicator */}
-          {loading && (
-            <div style={{
-              position: "absolute",
-              top: "8px",
-              right: "8px",
-              width: "8px",
-              height: "8px",
-              backgroundColor: colors.accent,
-              borderRadius: "50%",
-              animation: "pulse 1.5s infinite",
-            }} />
-          )}
-          
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              gap: "clamp(4px, 1vw, 10px)",
-              minHeight: "100px",
-            }}
-          >
-            {/* Pack data KPI cards */}
-            <div
-              style={{
-                background: "linear-gradient(135deg, #f8fffe 0%, #f0fffe 100%)",
-                border: `1px solid ${colors.atlantis}20`,
-                borderLeft: `4px solid ${colors.atlantis}`,
-                borderRadius: "8px",
-                padding: "clamp(6px, 1.2vw, 12px)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flex: 1,
-                minHeight: "38px",
-                boxShadow: "0 2px 8px rgba(135, 200, 66, 0.08)",
-                transition: "all 0.2s ease",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: "clamp(0.55rem, 1.1vw, 0.75rem)",
-                    color: colors.textLight,
-                    fontWeight: "600",
-                    lineHeight: 1,
-                    marginBottom: "3px",
-                    letterSpacing: "0.3px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Battery Voltage
-                </div>
-                <div
-                  style={{
-                    fontSize: "clamp(0.9rem, 2vw, 1.3rem)",
-                    color: colors.textDark,
-                    fontWeight: "800",
-                    lineHeight: 1,
-                    fontFamily: "monospace",
-                    textShadow: "0 1px 2px rgba(0,0,0,0.1)",
-                  }}
-                >
-                  {(processedData.Pack.totalBattVoltage || 0).toFixed(1)}V
-                </div>
-              </div>
-            </div>
-
-            {/* Additional pack data cards with similar structure... */}
-            <div
-              style={{
-                background: "linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%)",
-                border: `1px solid ${colors.primary}20`,
-                borderLeft: `4px solid ${colors.primary}`,
-                borderRadius: "8px",
-                padding: "clamp(6px, 1.2vw, 12px)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flex: 1,
-                minHeight: "38px",
-                boxShadow: "0 2px 8px rgba(99, 99, 98, 0.08)",
-                transition: "all 0.2s ease",
-              }}
-            >
-              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: "clamp(0.55rem, 1.1vw, 0.75rem)",
-                    color: colors.textLight,
-                    fontWeight: "600",
-                    lineHeight: 1,
-                    marginBottom: "3px",
-                    letterSpacing: "0.3px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Total Current
-                </div>
-                <div
-                  style={{
-                    fontSize: "clamp(0.9rem, 2vw, 1.3rem)",
-                    color: colors.textDark,
-                    fontWeight: "800",
-                    lineHeight: 1,
-                    fontFamily: "monospace",
-                    textShadow: "0 1px 2px rgba(0,0,0,0.1)",
-                  }}
-                >
-                  {(processedData.Pack.totalCurrent || 0).toFixed(2)}A
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Continue with other components... Temperature, SOC, Controls, Main Graph */}
-        {/* I'll include the key ones, but keeping this concise for space */}
-
-        {/* div16 - Main Graph with Progressive Updates */}
-        <div
-          style={{
-            ...cardStyle,
-            gridColumn: "span 4 / span 4",
+            gridColumn: "span 8 / span 8",
             gridRow: "span 3 / span 3",
-            gridColumnStart: 5,
+            gridColumnStart: 1,
             gridRowStart: 2,
-            minWidth: "300px",
-            minHeight: "200px",
+            minWidth: "400px",
+            minHeight: "300px",
             position: "relative",
           }}
         >
@@ -1012,106 +1258,106 @@ const DataViewer = ({
             </div>
           </div>
 
-          {/* Progressive loading indicator for chart */}
-          {loading && graphData.length <= 1 && (
-            <div className="loading-overlay">
-              <div style={{ textAlign: "center", color: colors.textLight }}>
-                <div
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    border: `4px solid ${colors.secondary}`,
-                    borderTop: `4px solid ${colors.accent}`,
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite",
-                    margin: "0 auto 12px",
-                  }}
-                />
-                <div style={{ fontSize: "0.9rem" }}>
-                  Loading {selectedParameter.toLowerCase()} data...
-                </div>
-                {loadingProgress && (
-                  <div style={{ fontSize: "0.7rem", marginTop: "4px" }}>
-                    {loadingProgress.message}
+            {/* Loading overlay for this specific chart */}
+            {loading && graphData.length <= 1 && (
+              <div className="loading-overlay">
+                <div style={{ textAlign: "center", color: colors.textLight }}>
+                  <div
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      border: `4px solid ${colors.secondary}`,
+                      borderTop: `4px solid ${colors.accent}`,
+                      borderRadius: "50%",
+                      animation: "spin 1s linear infinite",
+                      margin: "0 auto 12px",
+                    }}
+                  />
+                  <div style={{ fontSize: "0.9rem" }}>
+                    Loading {selectedParameter.toLowerCase()} data...
                   </div>
-                )}
+                  {loadingProgress && (
+                    <div style={{ fontSize: "0.7rem", marginTop: "4px" }}>
+                      {loadingProgress.message}
+                    </div>
+                  )}
+                </div>
               </div>
+            )}
+            
+            <div style={{ flex: 1, minHeight: "150px" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={graphData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.secondary} />
+                  <XAxis
+                    dataKey="time"
+                    stroke={colors.textLight}
+                    fontSize="clamp(8px, 1.5vw, 12px)"
+                  />
+                  <YAxis
+                    stroke={colors.textLight}
+                    fontSize="clamp(8px, 1.5vw, 12px)"
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: colors.backgroundSolid,
+                      border: `1px solid ${colors.secondary}`,
+                      borderRadius: "6px",
+                      color: colors.textDark,
+                      fontSize: "clamp(8px, 1.5vw, 12px)",
+                    }}
+                  />
+                  {selectedParameter === "Temperature"
+                    ? Object.keys(nodeData.temperature).map((sensor, index) => (
+                        <Line
+                          key={sensor}
+                          type="monotone"
+                          dataKey={sensor}
+                          stroke={index % 2 === 0 ? colors.primary : colors.accent}
+                          strokeWidth="clamp(1px, 0.3vw, 2px)"
+                          dot={false}
+                          connectNulls={false}
+                        />
+                      ))
+                    : Array.from({ length: 8 }).map((_, index) => (
+                        <Line
+                          key={`Cell ${index + 1}`}
+                          type="monotone"
+                          dataKey={`Cell ${index + 1}`}
+                          stroke={
+                            index % 3 === 0
+                              ? colors.primary
+                              : index % 3 === 1
+                              ? colors.accent
+                              : colors.ghost
+                          }
+                          strokeWidth="clamp(0.5px, 0.2vw, 1px)"
+                          dot={false}
+                          connectNulls={false}
+                        />
+                      ))}
+                </LineChart>
+              </ResponsiveContainer>
             </div>
-          )}
-          
-          <div style={{ flex: 1, minHeight: "150px" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={graphData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={colors.secondary} />
-                <XAxis
-                  dataKey="time"
-                  stroke={colors.textLight}
-                  fontSize="clamp(8px, 1.5vw, 12px)"
-                />
-                <YAxis
-                  stroke={colors.textLight}
-                  fontSize="clamp(8px, 1.5vw, 12px)"
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: colors.backgroundSolid,
-                    border: `1px solid ${colors.secondary}`,
-                    borderRadius: "6px",
-                    color: colors.textDark,
-                    fontSize: "clamp(8px, 1.5vw, 12px)",
-                  }}
-                />
-                {selectedParameter === "Temperature"
-                  ? Object.keys(nodeData.temperature).map((sensor, index) => (
-                      <Line
-                        key={sensor}
-                        type="monotone"
-                        dataKey={sensor}
-                        stroke={index % 2 === 0 ? colors.primary : colors.accent}
-                        strokeWidth="clamp(1px, 0.3vw, 2px)"
-                        dot={false}
-                        connectNulls={false}
-                      />
-                    ))
-                  : Array.from({ length: 8 }).map((_, index) => (
-                      <Line
-                        key={`Cell ${index + 1}`}
-                        type="monotone"
-                        dataKey={`Cell ${index + 1}`}
-                        stroke={
-                          index % 3 === 0
-                            ? colors.primary
-                            : index % 3 === 1
-                            ? colors.accent
-                            : colors.ghost
-                        }
-                        strokeWidth="clamp(0.5px, 0.2vw, 1px)"
-                        dot={false}
-                        connectNulls={false}
-                      />
-                    ))}
-              </LineChart>
-            </ResponsiveContainer>
+            
+            {/* Data quality indicator */}
+            {data && (
+              <div style={{
+                position: "absolute",
+                bottom: "8px",
+                right: "8px",
+                fontSize: "0.6rem",
+                color: colors.textLight,
+                backgroundColor: "rgba(255,255,255,0.9)",
+                padding: "2px 6px",
+                borderRadius: "4px",
+                border: `1px solid ${colors.secondary}30`,
+              }}>
+                {graphData.length} points • Sampled for performance
+              </div>
+            )}
           </div>
-          
-          {/* Data quality indicator */}
-          {data && (
-            <div style={{
-              position: "absolute",
-              bottom: "8px",
-              right: "8px",
-              fontSize: "0.6rem",
-              color: colors.textLight,
-              backgroundColor: "rgba(255,255,255,0.9)",
-              padding: "2px 6px",
-              borderRadius: "4px",
-              border: `1px solid ${colors.secondary}30`,
-            }}>
-              {graphData.length} points • Sampled for performance
-            </div>
-          )}
         </div>
-      </div>
 
       {/* CSS animations */}
       <style>{`

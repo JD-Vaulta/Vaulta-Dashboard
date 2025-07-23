@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import DataViewer from "./components/DataViewer.js";
-import { fetchData, testBatteryConnection } from "../../queries.js";
+import { fetchData, testBatteryConnection, detectBatteryType } from "../../queries.js";
 
 // Battery Registration Integration
 import BatterySelector from "../../components/common/BatterySelector.js";
@@ -34,6 +34,8 @@ const DataAnalyticsPage = () => {
   const [error, setError] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 0, message: "" });
   const [hasStartedAnalysis, setHasStartedAnalysis] = useState(false);
+  const [selectedBatteryType, setSelectedBatteryType] = useState("BMS"); // Track battery type
+  const [selectedDeviceId, setSelectedDeviceId] = useState(""); // Track selected device ID (for PackController or BMS)
 
   // Battery Registration Integration
   const { getCurrentBatteryId, selectedBattery, hasRegisteredBatteries, setBatteryById } = useBatteryContext();
@@ -48,18 +50,34 @@ const DataAnalyticsPage = () => {
     { label: "Last 1 Month", value: "1month" },
   ];
 
+  // Extended battery list including PackController
+  const availableBatteries = [
+    { id: "0x400", name: "4911 - 0x400", type: "BMS" },
+    { id: "0x480", name: "4911 - 0x480", type: "BMS" },
+    { id: "0700", name: "Pack Controller", type: "PACK_CONTROLLER" }
+  ];
+
   // Main data fetching function
   const handleFetchData = useCallback(async () => {
-    // Get current battery ID from context
-    const currentBatteryId = getCurrentBatteryId();
+    // For PackController, use selectedDeviceId. For BMS, use battery context
+    let currentBatteryId;
+    if (selectedBatteryType === 'PACK_CONTROLLER') {
+      currentBatteryId = selectedDeviceId; // This should be "0700"
+    } else {
+      currentBatteryId = getCurrentBatteryId();
+    }
     
     if (!currentBatteryId) {
-      setError("Please select a battery to analyze");
+      setError("Please select a battery/controller to analyze");
       return;
     }
 
     // Keep the "0x" prefix - don't remove it
     const tagId = currentBatteryId;
+
+    // Detect battery type for logging
+    const batteryType = detectBatteryType(tagId);
+    setSelectedBatteryType(batteryType);
 
     setLoading(true);
     setError(null);
@@ -68,8 +86,11 @@ const DataAnalyticsPage = () => {
 
     try {
       console.log("=== FETCH DATA DEBUG ===");
-      console.log("Original currentBatteryId:", currentBatteryId);
+      console.log("Selected Device ID:", selectedDeviceId);
+      console.log("Selected Battery Type:", selectedBatteryType);
+      console.log("Current Battery ID:", currentBatteryId);
       console.log("tagId being passed to fetchData:", tagId);
+      console.log("Detected battery type:", batteryType);
       console.log("Selected time range:", selectedTimeRange);
       console.log("========================");
       
@@ -93,15 +114,28 @@ const DataAnalyticsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [getCurrentBatteryId, selectedTimeRange]);
+  }, [selectedDeviceId, selectedBatteryType, getCurrentBatteryId, selectedTimeRange]);
 
-  // Handle battery change without refresh
+  // Handle battery change without refresh - updated for PackController
   const handleBatteryChange = useCallback(async (newBatteryId) => {
     if (!newBatteryId) return;
     
     try {
-      // Update battery context
-      setBatteryById(newBatteryId);
+      // Detect battery type
+      const batteryType = detectBatteryType(newBatteryId);
+      setSelectedBatteryType(batteryType);
+      setSelectedDeviceId(newBatteryId); // Always set the device ID
+      
+      console.log("=== BATTERY CHANGE DEBUG ===");
+      console.log("New Battery ID:", newBatteryId);
+      console.log("Detected Battery Type:", batteryType);
+      console.log("Set Device ID to:", newBatteryId);
+      console.log("============================");
+      
+      // Update battery context only for BMS batteries
+      if (batteryType === 'BMS') {
+        setBatteryById(newBatteryId);
+      }
       
       // Auto-fetch data for new battery if we've already started analysis
       if (hasStartedAnalysis) {
@@ -138,9 +172,15 @@ const DataAnalyticsPage = () => {
   }, [hasStartedAnalysis, handleFetchData]);
 
   const handleTestConnection = async () => {
-    const currentBatteryId = getCurrentBatteryId();
+    let currentBatteryId;
+    if (selectedBatteryType === 'PACK_CONTROLLER') {
+      currentBatteryId = selectedDeviceId;
+    } else {
+      currentBatteryId = getCurrentBatteryId();
+    }
+    
     if (!currentBatteryId) {
-      console.log("No battery selected for testing");
+      console.log("No battery/controller selected for testing");
       return;
     }
     
@@ -149,17 +189,22 @@ const DataAnalyticsPage = () => {
 
   // If we have started analysis or have data/loading/error, show the viewer
   if (hasStartedAnalysis) {
+    // Determine the correct TagId to pass to DataViewer
+    const currentTagId = selectedBatteryType === 'PACK_CONTROLLER' ? selectedDeviceId : getCurrentBatteryId();
+    
     return (
       <DataViewer
         loading={loading}
         error={error}
         data={data}
-        selectedTagId={getCurrentBatteryId()}
+        selectedTagId={currentTagId}
         onFetchData={handleFetchData}
         loadingProgress={loadingProgress}
         onBatteryChange={handleBatteryChange}
         onTimeRangeChange={handleTimeRangeChange}
         currentTimeRange={selectedTimeRange}
+        batteryType={selectedBatteryType} // Pass battery type to DataViewer
+        availableBatteries={availableBatteries} // Pass available batteries
       />
     );
   }
@@ -221,324 +266,286 @@ const DataAnalyticsPage = () => {
                 margin: 0,
               }}
             >
-              {hasRegisteredBatteries 
-                ? "Select time range to analyze your battery performance with progressive loading" 
-                : "Please register a battery first to access analytics"
-              }
+              Select time range to analyze your battery performance with progressive loading
             </p>
           </div>
 
-          {hasRegisteredBatteries ? (
-            <>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "30px",
-                  width: "100%",
-                  maxWidth: "600px",
-                }}
-              >
-                <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
-                  <div style={{ flex: 1, minWidth: "250px" }}>
-                    <label
-                      style={{
-                        fontSize: "1rem",
-                        color: colors.textDark,
-                        marginBottom: "8px",
-                        display: "block",
-                        fontWeight: "600",
-                      }}
-                    >
-                      Selected Battery:
-                    </label>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <BatterySelector
-                        style={{
-                          padding: "12px 16px",
-                          borderRadius: "8px",
-                          border: `2px solid ${colors.secondary}`,
-                          fontSize: "1rem",
-                          backgroundColor: "#fff",
-                          minWidth: "200px",
-                        }}
-                        showAddButton={true}
-                        compact={false}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: "250px" }}>
-                    <label
-                      style={{
-                        fontSize: "1rem",
-                        color: colors.textDark,
-                        marginBottom: "8px",
-                        display: "block",
-                        fontWeight: "600",
-                      }}
-                    >
-                      Time Period:
-                    </label>
-                    <select
-                      value={selectedTimeRange}
-                      onChange={(e) => setSelectedTimeRange(e.target.value)}
-                      style={{
-                        padding: "12px 16px",
-                        borderRadius: "8px",
-                        border: `2px solid ${colors.secondary}`,
-                        width: "100%",
-                        fontSize: "1rem",
-                        color: colors.textDark,
-                        backgroundColor: "#fff",
-                        cursor: "pointer",
-                        outline: "none",
-                        transition: "border-color 0.2s ease",
-                      }}
-                    >
-                      {timeRanges.map((range) => (
-                        <option key={range.value} value={range.value}>
-                          {range.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
-                    <button
-                      onClick={handleFetchData}
-                      disabled={!selectedBattery}
-                      style={{
-                        padding: "16px 32px",
-                        backgroundColor: selectedBattery ? colors.accent : colors.secondary,
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "8px",
-                        cursor: selectedBattery ? "pointer" : "not-allowed",
-                        fontSize: "1.1rem",
-                        fontWeight: "700",
-                        transition: "all 0.3s ease",
-                        boxShadow: selectedBattery ? "0 4px 8px rgba(0,0,0,0.1)" : "none",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.5px",
-                        opacity: selectedBattery ? 1 : 0.6,
-                      }}
-                      onMouseOver={(e) => {
-                        if (selectedBattery) {
-                          e.target.style.backgroundColor = colors.primary;
-                          e.target.style.transform = "translateY(-2px)";
-                        }
-                      }}
-                      onMouseOut={(e) => {
-                        if (selectedBattery) {
-                          e.target.style.backgroundColor = colors.accent;
-                          e.target.style.transform = "translateY(0)";
-                        }
-                      }}
-                    >
-                      Start Progressive Analysis
-                    </button>
-                    
-                    {selectedBattery && (
-                      <button
-                        onClick={handleTestConnection}
-                        style={{
-                          padding: "16px 24px",
-                          backgroundColor: colors.primary,
-                          color: "#fff",
-                          border: "none",
-                          borderRadius: "8px",
-                          cursor: "pointer",
-                          fontSize: "0.9rem",
-                          fontWeight: "600",
-                          transition: "all 0.3s ease",
-                          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.5px",
-                        }}
-                        onMouseOver={(e) => {
-                          e.target.style.backgroundColor = colors.textDark;
-                          e.target.style.transform = "translateY(-1px)";
-                        }}
-                        onMouseOut={(e) => {
-                          e.target.style.backgroundColor = colors.primary;
-                          e.target.style.transform = "translateY(0)";
-                        }}
-                      >
-                        Test Connection
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "30px",
+              width: "100%",
+              maxWidth: "600px",
+            }}
+          >
+            <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: "250px" }}>
+                <label
                   style={{
-                    textAlign: "center",
-                    padding: "20px",
-                    backgroundColor: colors.background,
-                    borderRadius: "8px",
-                    border: `1px solid ${colors.secondary}`,
+                    fontSize: "1rem",
+                    color: colors.textDark,
+                    marginBottom: "8px",
+                    display: "block",
+                    fontWeight: "600",
                   }}
                 >
-                  <h3
-                    style={{
-                      fontSize: "1.1rem",
-                      fontWeight: "600",
-                      color: colors.textDark,
-                      margin: "0 0 8px 0",
+                  Selected Battery:
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  {/* Custom battery selector that includes PackController */}
+                  <select
+                    value={selectedDeviceId}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      handleBatteryChange(selectedId);
                     }}
-                  >
-                    ⚡ Progressive Features:
-                  </h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    <p
-                      style={{
-                        fontSize: "0.9rem",
-                        color: colors.textLight,
-                        margin: 0,
-                        lineHeight: "1.4",
-                      }}
-                    >
-                      📊 <strong>Real-time plotting</strong> - Charts update as data loads
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "0.9rem",
-                        color: colors.textLight,
-                        margin: 0,
-                        lineHeight: "1.4",
-                      }}
-                    >
-                      🔄 <strong>Dynamic controls</strong> - Switch battery/time range without refresh
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "0.9rem",
-                        color: colors.textLight,
-                        margin: 0,
-                        lineHeight: "1.4",
-                      }}
-                    >
-                      ⚡ <strong>Smart sampling</strong> - Optimized for performance with large datasets
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "0.9rem",
-                        color: colors.textLight,
-                        margin: 0,
-                        lineHeight: "1.4",
-                      }}
-                    >
-                      📈 <strong>Progressive loading</strong> - See results immediately, no waiting
-                    </p>
-                  </div>
-                </div>
-
-                {selectedBattery && (
-                  <div
                     style={{
-                      textAlign: "center",
-                      padding: "16px",
-                      backgroundColor: "#e8f5e8",
+                      padding: "12px 16px",
                       borderRadius: "8px",
-                      border: `1px solid ${colors.accent}`,
+                      border: `2px solid ${colors.secondary}`,
+                      fontSize: "1rem",
+                      backgroundColor: "#fff",
+                      minWidth: "200px",
+                      cursor: "pointer",
                     }}
                   >
-                    <p
-                      style={{
-                        fontSize: "0.9rem",
-                        color: colors.accent,
-                        margin: "0 0 4px 0",
-                        fontWeight: "600",
-                      }}
-                    >
-                      Ready for progressive analysis:
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "1rem",
-                        color: colors.textDark,
-                        margin: 0,
-                        fontWeight: "600",
-                        fontFamily: "monospace",
-                      }}
-                    >
-                      {selectedBattery.nickname || selectedBattery.serialNumber} ({selectedBattery.batteryId})
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "0.8rem",
-                        color: colors.textLight,
-                        margin: "4px 0 0 0",
-                        fontStyle: "italic",
-                      }}
-                    >
-                      Data will plot progressively as it loads. You can switch settings dynamically after analysis starts.
-                    </p>
-                  </div>
+                    <option value="">Select Battery/Controller</option>
+                    {availableBatteries.map((battery) => (
+                      <option key={battery.id} value={battery.id}>
+                        {battery.name} {battery.type === 'PACK_CONTROLLER' ? '(Controller)' : '(Battery)'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ flex: 1, minWidth: "250px" }}>
+                <label
+                  style={{
+                    fontSize: "1rem",
+                    color: colors.textDark,
+                    marginBottom: "8px",
+                    display: "block",
+                    fontWeight: "600",
+                  }}
+                >
+                  Time Period:
+                </label>
+                <select
+                  value={selectedTimeRange}
+                  onChange={(e) => setSelectedTimeRange(e.target.value)}
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "8px",
+                    border: `2px solid ${colors.secondary}`,
+                    width: "100%",
+                    fontSize: "1rem",
+                    color: colors.textDark,
+                    backgroundColor: "#fff",
+                    cursor: "pointer",
+                    outline: "none",
+                    transition: "border-color 0.2s ease",
+                  }}
+                >
+                  {timeRanges.map((range) => (
+                    <option key={range.value} value={range.value}>
+                      {range.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ textAlign: "center" }}>
+              <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+                <button
+                  onClick={handleFetchData}
+                  disabled={!selectedDeviceId && !selectedBattery}
+                  style={{
+                    padding: "16px 32px",
+                    backgroundColor: (selectedDeviceId || selectedBattery) ? colors.accent : colors.secondary,
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: (selectedDeviceId || selectedBattery) ? "pointer" : "not-allowed",
+                    fontSize: "1.1rem",
+                    fontWeight: "700",
+                    transition: "all 0.3s ease",
+                    boxShadow: (selectedDeviceId || selectedBattery) ? "0 4px 8px rgba(0,0,0,0.1)" : "none",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                    opacity: (selectedDeviceId || selectedBattery) ? 1 : 0.6,
+                  }}
+                  onMouseOver={(e) => {
+                    if (selectedDeviceId || selectedBattery) {
+                      e.target.style.backgroundColor = colors.primary;
+                      e.target.style.transform = "translateY(-2px)";
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (selectedDeviceId || selectedBattery) {
+                      e.target.style.backgroundColor = colors.accent;
+                      e.target.style.transform = "translateY(0)";
+                    }
+                  }}
+                >
+                  Start Progressive Analysis
+                </button>
+                
+                {(selectedDeviceId || selectedBattery) && (
+                  <button
+                    onClick={handleTestConnection}
+                    style={{
+                      padding: "16px 24px",
+                      backgroundColor: colors.primary,
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontSize: "0.9rem",
+                      fontWeight: "600",
+                      transition: "all 0.3s ease",
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                    onMouseOver={(e) => {
+                      e.target.style.backgroundColor = colors.textDark;
+                      e.target.style.transform = "translateY(-1px)";
+                    }}
+                    onMouseOut={(e) => {
+                      e.target.style.backgroundColor = colors.primary;
+                      e.target.style.transform = "translateY(0)";
+                    }}
+                  >
+                    Test Connection
+                  </button>
                 )}
               </div>
-            </>
-          ) : (
+            </div>
+
             <div
               style={{
                 textAlign: "center",
-                padding: "40px",
+                padding: "20px",
                 backgroundColor: colors.background,
                 borderRadius: "8px",
                 border: `1px solid ${colors.secondary}`,
-                maxWidth: "500px",
               }}
             >
               <h3
                 style={{
-                  fontSize: "1.2rem",
+                  fontSize: "1.1rem",
                   fontWeight: "600",
                   color: colors.textDark,
-                  margin: "0 0 16px 0",
+                  margin: "0 0 8px 0",
                 }}
               >
-                No Batteries Registered
+                ⚡ Progressive Features:
               </h3>
-              <p
-                style={{
-                  fontSize: "1rem",
-                  color: colors.textLight,
-                  margin: "0 0 24px 0",
-                  lineHeight: "1.5",
-                }}
-              >
-                You need to register at least one battery before you can access progressive data analytics.
-              </p>
-              <button
-                onClick={() => window.location.href = '/battery-registration'}
-                style={{
-                  padding: "12px 24px",
-                  backgroundColor: colors.accent,
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontSize: "1rem",
-                  fontWeight: "600",
-                  transition: "all 0.3s ease",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.backgroundColor = colors.primary;
-                  e.target.style.transform = "translateY(-1px)";
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.backgroundColor = colors.accent;
-                  e.target.style.transform = "translateY(0)";
-                }}
-              >
-                Register Battery
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <p
+                  style={{
+                    fontSize: "0.9rem",
+                    color: colors.textLight,
+                    margin: 0,
+                    lineHeight: "1.4",
+                  }}
+                >
+                  📊 <strong>Real-time plotting</strong> - Charts update as data loads
+                </p>
+                <p
+                  style={{
+                    fontSize: "0.9rem",
+                    color: colors.textLight,
+                    margin: 0,
+                    lineHeight: "1.4",
+                  }}
+                >
+                  🔄 <strong>Dynamic controls</strong> - Switch battery/time range without refresh
+                </p>
+                <p
+                  style={{
+                    fontSize: "0.9rem",
+                    color: colors.textLight,
+                    margin: 0,
+                    lineHeight: "1.4",
+                  }}
+                >
+                  ⚡ <strong>Smart sampling</strong> - Optimized for performance with large datasets
+                </p>
+                <p
+                  style={{
+                    fontSize: "0.9rem",
+                    color: colors.textLight,
+                    margin: 0,
+                    lineHeight: "1.4",
+                  }}
+                >
+                  📈 <strong>Progressive loading</strong> - See results immediately, no waiting
+                </p>
+                <p
+                  style={{
+                    fontSize: "0.9rem",
+                    color: colors.textLight,
+                    margin: 0,
+                    lineHeight: "1.4",
+                  }}
+                >
+                  🎛️ <strong>Multi-type support</strong> - BMS batteries and Pack Controller
+                </p>
+              </div>
             </div>
-          )}
+
+            {selectedDeviceId && (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "16px",
+                  backgroundColor: selectedBatteryType === 'PACK_CONTROLLER' ? "#e8f0ff" : "#e8f5e8",
+                  borderRadius: "8px",
+                  border: `1px solid ${selectedBatteryType === 'PACK_CONTROLLER' ? '#4169E1' : colors.accent}`,
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "0.9rem",
+                    color: selectedBatteryType === 'PACK_CONTROLLER' ? '#4169E1' : colors.accent,
+                    margin: "0 0 4px 0",
+                    fontWeight: "600",
+                  }}
+                >
+                  Ready for progressive analysis:
+                </p>
+                <p
+                  style={{
+                    fontSize: "1rem",
+                    color: colors.textDark,
+                    margin: 0,
+                    fontWeight: "600",
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {selectedBatteryType === 'PACK_CONTROLLER' ? 'Pack Controller (0700)' : 
+                   (selectedBattery ? `${selectedBattery.nickname || selectedBattery.serialNumber} (${selectedBattery.batteryId})` : `Device (${selectedDeviceId})`)}
+                </p>
+                <p
+                  style={{
+                    fontSize: "0.8rem",
+                    color: colors.textLight,
+                    margin: "4px 0 0 0",
+                    fontStyle: "italic",
+                  }}
+                >
+                  {selectedBatteryType === 'PACK_CONTROLLER' 
+                    ? 'System-level metrics: Temperature, Voltage, SOC, SOH, Carbon Offset'
+                    : 'Cell-level analysis: Individual cells, temperatures, balancing data'
+                  }
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
