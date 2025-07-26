@@ -122,13 +122,13 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
       value: parseFloat(bmsState.MaxCellTemp?.N),
       maxValue: 60,
       unit: "°C",
-      additionalInfo: "35.5°-37.5°",
+      additionalInfo: "0°-60°",
       status: "Normal",
       statusColor: colors.success,
-      trend: "-0.5°",
-      gaugeColor: (val) => {
-        if (val > 50) return colors.error;
-        if (val > 40) return colors.warning;
+      trend: "",
+      gaugeColor: (value) => {
+        if (value > 50) return colors.error;
+        if (value > 10) return colors.warning;
         return colors.success;
       },
       icon: "",

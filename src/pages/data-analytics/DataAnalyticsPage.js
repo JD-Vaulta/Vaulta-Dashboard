@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import DataViewer from "./components/DataViewer.js";
 import { fetchData, testBatteryConnection, detectBatteryType } from "../../queries.js";
 
@@ -37,8 +37,62 @@ const DataAnalyticsPage = () => {
   const [selectedBatteryType, setSelectedBatteryType] = useState("BMS"); // Track battery type
   const [selectedDeviceId, setSelectedDeviceId] = useState(""); // Track selected device ID (for PackController or BMS)
 
-  // Battery Registration Integration
-  const { getCurrentBatteryId, selectedBattery, hasRegisteredBatteries, setBatteryById } = useBatteryContext();
+  // Battery Registration Integration - Enhanced with dynamic discovery
+  const { 
+    getAllAvailableBatteries, 
+    selectBatteryById, 
+    getCurrentBatteryId, 
+    selectedBattery, 
+    hasRegisteredBatteries, 
+    batteryDiscoveryLoading,
+    availableSystemBatteries,
+    loadAvailableSystemBatteries
+  } = useBatteryContext();
+
+  // Get dynamic battery list
+  const [availableBatteries, setAvailableBatteries] = useState([]);
+  const [batteriesLoading, setBatteriesLoading] = useState(true);
+
+  // Load available batteries on component mount
+  useEffect(() => {
+    const loadBatteries = async () => {
+      try {
+        setBatteriesLoading(true);
+        
+        // Get all available batteries from context
+        const allBatteries = getAllAvailableBatteries();
+        
+        // If no batteries found, try to refresh the discovery
+        if (allBatteries.length === 0 && !batteryDiscoveryLoading) {
+          console.log('No batteries found, refreshing discovery...');
+          await loadAvailableSystemBatteries();
+          // Get batteries again after refresh
+          const refreshedBatteries = getAllAvailableBatteries();
+          setAvailableBatteries(refreshedBatteries);
+        } else {
+          setAvailableBatteries(allBatteries);
+        }
+        
+        console.log('Loaded available batteries:', allBatteries);
+      } catch (error) {
+        console.error('Error loading batteries:', error);
+        setError('Failed to load available batteries');
+      } finally {
+        setBatteriesLoading(false);
+      }
+    };
+
+    loadBatteries();
+  }, [getAllAvailableBatteries, batteryDiscoveryLoading, loadAvailableSystemBatteries]);
+
+  // Update available batteries when system batteries change
+  useEffect(() => {
+    if (!batteryDiscoveryLoading) {
+      const allBatteries = getAllAvailableBatteries();
+      setAvailableBatteries(allBatteries);
+      console.log('Updated available batteries:', allBatteries);
+    }
+  }, [availableSystemBatteries, batteryDiscoveryLoading, getAllAvailableBatteries]);
 
   const timeRanges = [
     { label: "Last 1 Minute", value: "1min" },
@@ -48,13 +102,6 @@ const DataAnalyticsPage = () => {
     { label: "Last 1 Day", value: "1day" },
     { label: "Last 7 Days", value: "7days" },
     { label: "Last 1 Month", value: "1month" },
-  ];
-
-  // Extended battery list including PackController
-  const availableBatteries = [
-    { id: "0x400", name: "4911 - 0x400", type: "BMS" },
-    { id: "0x480", name: "4911 - 0x480", type: "BMS" },
-    { id: "0700", name: "Pack Controller", type: "PACK_CONTROLLER" }
   ];
 
   // Main data fetching function
@@ -92,6 +139,7 @@ const DataAnalyticsPage = () => {
       console.log("tagId being passed to fetchData:", tagId);
       console.log("Detected battery type:", batteryType);
       console.log("Selected time range:", selectedTimeRange);
+      console.log("Available batteries:", availableBatteries);
       console.log("========================");
       
       // Create progress callback for progressive plotting
@@ -114,9 +162,9 @@ const DataAnalyticsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedDeviceId, selectedBatteryType, getCurrentBatteryId, selectedTimeRange]);
+  }, [selectedDeviceId, selectedBatteryType, getCurrentBatteryId, selectedTimeRange, availableBatteries]);
 
-  // Handle battery change without refresh - updated for PackController
+  // Handle battery change without refresh - updated for dynamic batteries
   const handleBatteryChange = useCallback(async (newBatteryId) => {
     if (!newBatteryId) return;
     
@@ -130,11 +178,12 @@ const DataAnalyticsPage = () => {
       console.log("New Battery ID:", newBatteryId);
       console.log("Detected Battery Type:", batteryType);
       console.log("Set Device ID to:", newBatteryId);
+      console.log("Available batteries:", availableBatteries);
       console.log("============================");
       
       // Update battery context only for BMS batteries
       if (batteryType === 'BMS') {
-        setBatteryById(newBatteryId);
+        selectBatteryById(newBatteryId);
       }
       
       // Auto-fetch data for new battery if we've already started analysis
@@ -152,7 +201,7 @@ const DataAnalyticsPage = () => {
       console.error("Error changing battery:", error);
       setError("Failed to switch battery. Please try again.");
     }
-  }, [hasStartedAnalysis, handleFetchData, setBatteryById]);
+  }, [hasStartedAnalysis, handleFetchData, selectBatteryById, availableBatteries]);
 
   // Handle time range change without refresh
   const handleTimeRangeChange = useCallback(async (newTimeRange) => {
@@ -187,6 +236,22 @@ const DataAnalyticsPage = () => {
     await testBatteryConnection(currentBatteryId);
   };
 
+  // Refresh batteries function
+  const handleRefreshBatteries = async () => {
+    setBatteriesLoading(true);
+    try {
+      await loadAvailableSystemBatteries();
+      const refreshedBatteries = getAllAvailableBatteries();
+      setAvailableBatteries(refreshedBatteries);
+      console.log('Refreshed batteries:', refreshedBatteries);
+    } catch (error) {
+      console.error('Error refreshing batteries:', error);
+      setError('Failed to refresh batteries');
+    } finally {
+      setBatteriesLoading(false);
+    }
+  };
+
   // If we have started analysis or have data/loading/error, show the viewer
   if (hasStartedAnalysis) {
     // Determine the correct TagId to pass to DataViewer
@@ -204,8 +269,127 @@ const DataAnalyticsPage = () => {
         onTimeRangeChange={handleTimeRangeChange}
         currentTimeRange={selectedTimeRange}
         batteryType={selectedBatteryType} // Pass battery type to DataViewer
-        availableBatteries={availableBatteries} // Pass available batteries
+        availableBatteries={availableBatteries} // Pass dynamic available batteries
       />
+    );
+  }
+
+  // Show loading state while discovering batteries
+  if (batteriesLoading || batteryDiscoveryLoading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "100vh",
+          backgroundColor: colors.backgroundSolid,
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            padding: "20px",
+            display: "flex",
+            flexDirection: "column",
+            maxWidth: "1200px",
+            margin: "0 auto",
+            width: "100%",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: "12px",
+              padding: "40px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+              border: `1px solid ${colors.primary}`,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "500px",
+            }}
+          >
+            <div style={{ textAlign: "center", marginBottom: "40px" }}>
+              <h1
+                style={{
+                  fontSize: "2.5rem",
+                  fontWeight: "700",
+                  color: colors.textDark,
+                  margin: "0 0 16px 0",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Battery Data Analytics
+              </h1>
+              <p
+                style={{
+                  fontSize: "1.1rem",
+                  color: colors.textLight,
+                  margin: 0,
+                }}
+              >
+                Discovering available batteries in the system...
+              </p>
+            </div>
+
+            {/* Loading Spinner */}
+            <div
+              style={{
+                width: "50px",
+                height: "50px",
+                border: `4px solid ${colors.secondary}`,
+                borderTop: `4px solid ${colors.accent}`,
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+                margin: "0 auto 20px auto",
+              }}
+            />
+
+            <div
+              style={{
+                textAlign: "center",
+                padding: "20px",
+                backgroundColor: colors.background,
+                borderRadius: "8px",
+                border: `1px solid ${colors.secondary}`,
+              }}
+            >
+              <p
+                style={{
+                  fontSize: "1rem",
+                  color: colors.textDark,
+                  margin: "0 0 8px 0",
+                  fontWeight: "600",
+                }}
+              >
+                🔍 Scanning for batteries...
+              </p>
+              <p
+                style={{
+                  fontSize: "0.9rem",
+                  color: colors.textLight,
+                  margin: 0,
+                  lineHeight: "1.4",
+                }}
+              >
+                Checking for BMS batteries and Pack Controllers in the system
+              </p>
+            </div>
+
+            {/* CSS for spinner animation */}
+            <style>{`
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+            `}</style>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -293,7 +477,7 @@ const DataAnalyticsPage = () => {
                   Selected Battery:
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  {/* Custom battery selector that includes PackController */}
+                  {/* Dynamic battery selector */}
                   <select
                     value={selectedDeviceId}
                     onChange={(e) => {
@@ -313,11 +497,55 @@ const DataAnalyticsPage = () => {
                     <option value="">Select Battery/Controller</option>
                     {availableBatteries.map((battery) => (
                       <option key={battery.id} value={battery.id}>
-                        {battery.name} {battery.type === 'PACK_CONTROLLER' ? '(Controller)' : '(Battery)'}
+                        {battery.displayName} ({battery.type === 'PACK_CONTROLLER' ? 'Controller' : 'Battery'})
                       </option>
                     ))}
                   </select>
+                  
+                  {/* Refresh batteries button */}
+                  <button
+                    onClick={handleRefreshBatteries}
+                    disabled={batteriesLoading}
+                    style={{
+                      padding: "12px 16px",
+                      backgroundColor: colors.primary,
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      cursor: batteriesLoading ? "not-allowed" : "pointer",
+                      fontSize: "0.9rem",
+                      fontWeight: "600",
+                      opacity: batteriesLoading ? 0.6 : 1,
+                    }}
+                    title="Refresh available batteries"
+                  >
+                    {batteriesLoading ? "⟲" : "🔄"}
+                  </button>
                 </div>
+                
+                {/* Battery discovery info */}
+                {availableBatteries.length > 0 && (
+                  <div style={{ 
+                    marginTop: "8px", 
+                    fontSize: "0.8rem", 
+                    color: colors.textLight,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}>
+                    <span>✅ Found {availableBatteries.length} available device{availableBatteries.length !== 1 ? 's' : ''}</span>
+                    <span style={{ 
+                      backgroundColor: colors.accent, 
+                      color: "white", 
+                      padding: "2px 6px", 
+                      borderRadius: "8px", 
+                      fontSize: "0.7rem",
+                      fontWeight: "600"
+                    }}>
+                      DYNAMIC
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div style={{ flex: 1, minWidth: "250px" }}>
@@ -453,6 +681,16 @@ const DataAnalyticsPage = () => {
                     lineHeight: "1.4",
                   }}
                 >
+                  🔍 <strong>Dynamic Discovery</strong> - Automatically finds available batteries and controllers
+                </p>
+                <p
+                  style={{
+                    fontSize: "0.9rem",
+                    color: colors.textLight,
+                    margin: 0,
+                    lineHeight: "1.4",
+                  }}
+                >
                   📊 <strong>Real-time plotting</strong> - Charts update as data loads
                 </p>
                 <p
@@ -527,8 +765,10 @@ const DataAnalyticsPage = () => {
                     fontFamily: "monospace",
                   }}
                 >
-                  {selectedBatteryType === 'PACK_CONTROLLER' ? 'Pack Controller (0700)' : 
-                   (selectedBattery ? `${selectedBattery.nickname || selectedBattery.serialNumber} (${selectedBattery.batteryId})` : `Device (${selectedDeviceId})`)}
+                  {(() => {
+                    const battery = availableBatteries.find(b => b.id === selectedDeviceId);
+                    return battery ? battery.displayName : selectedDeviceId;
+                  })()}
                 </p>
                 <p
                   style={{
@@ -543,6 +783,34 @@ const DataAnalyticsPage = () => {
                     : 'Cell-level analysis: Individual cells, temperatures, balancing data'
                   }
                 </p>
+                
+                {/* Show if this is a dynamically discovered battery */}
+                {(() => {
+                  const battery = availableBatteries.find(b => b.id === selectedDeviceId);
+                  return battery && battery.source === 'system' && (
+                    <div style={{ marginTop: "8px" }}>
+                      <span style={{ 
+                        backgroundColor: colors.accent, 
+                        color: "white", 
+                        padding: "2px 8px", 
+                        borderRadius: "12px", 
+                        fontSize: "0.7rem",
+                        fontWeight: "600"
+                      }}>
+                        DISCOVERED DYNAMICALLY
+                      </span>
+                      {battery.lastSeen && (
+                        <p style={{
+                          fontSize: "0.7rem",
+                          color: colors.textLight,
+                          margin: "4px 0 0 0",
+                        }}>
+                          Last seen: {battery.lastSeen.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

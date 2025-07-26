@@ -1769,3 +1769,305 @@ export const getDataByTimestamp = async (
 ) => {
   return getTimeRangeData(docClient, tagID, timestamp, timestamp);
 };
+
+
+//Newly UPDATED CHECKOUT AHMAD AHMED
+
+
+
+
+
+// Add these functions to your queries.js file
+
+/**
+ * Scan DynamoDB tables to find all available battery TagIDs
+ */
+export const scanForAvailableBatteries = async (docClient, limit = 100) => {
+  try {
+    log(LOG_LEVELS.INFO, `Scanning for available batteries in DynamoDB tables`);
+    
+    const availableBatteries = [];
+    const scannedTagIDs = new Set();
+
+    // First scan the BMS table for battery TagIDs
+    try {
+      const bmsParams = {
+        TableName: BMS_TABLE_NAME,
+        ProjectionExpression: "TagID, #ts",
+        ExpressionAttributeNames: {
+          "#ts": "Timestamp"
+        },
+        Limit: limit
+      };
+
+      let lastEvaluatedKey = null;
+      let scanCount = 0;
+      const maxScans = 5; // Limit the number of scans to prevent long operations
+
+      do {
+        scanCount++;
+        if (lastEvaluatedKey) {
+          bmsParams.ExclusiveStartKey = lastEvaluatedKey;
+        }
+
+        const result = await docClient.scan(bmsParams).promise();
+        
+        // Process each item
+        result.Items.forEach(item => {
+          const tagId = item.TagID;
+          const timestamp = parseInt(item.Timestamp?.N || item.Timestamp) * 1000;
+          
+          if (tagId && tagId.startsWith('BAT-') && !scannedTagIDs.has(tagId)) {
+            scannedTagIDs.add(tagId);
+            
+            // Extract the battery ID (remove BAT- prefix)
+            const batteryId = tagId.replace('BAT-', '');
+            
+            // Check if this battery has recent data (within last 7 days)
+            const daysSinceLastSeen = (Date.now() - timestamp) / (1000 * 60 * 60 * 24);
+            const isActive = daysSinceLastSeen <= 7;
+            
+            if (isActive) {
+              availableBatteries.push({
+                id: batteryId,
+                name: `Battery ${batteryId}`,
+                type: "BMS",
+                displayName: `Battery ${batteryId}`,
+                lastSeen: new Date(timestamp),
+                isActive: true,
+                fullBatteryId: tagId,
+                source: 'scan',
+                daysSinceLastSeen: Math.round(daysSinceLastSeen * 10) / 10
+              });
+            }
+          }
+        });
+
+        lastEvaluatedKey = result.LastEvaluatedKey;
+        
+      } while (lastEvaluatedKey && scanCount < maxScans);
+
+      log(LOG_LEVELS.INFO, `BMS table scan found ${availableBatteries.length} active batteries`);
+      
+    } catch (error) {
+      log(LOG_LEVELS.WARN, `Error scanning BMS table:`, error);
+    }
+
+    // Then scan the PackController table
+    try {
+      const packParams = {
+        TableName: PACK_CONTROLLER_TABLE_NAME,
+        ProjectionExpression: "TagID, #ts",
+        ExpressionAttributeNames: {
+          "#ts": "Timestamp"
+        },
+        Limit: 50
+      };
+
+      const packResult = await docClient.scan(packParams).promise();
+      
+      packResult.Items.forEach(item => {
+        const tagId = item.TagID;
+        const timestamp = parseInt(item.Timestamp?.N || item.Timestamp) * 1000;
+        
+        if (tagId === 'PACK-CONTROLLER' && !scannedTagIDs.has(tagId)) {
+          scannedTagIDs.add(tagId);
+          
+          // Check if this controller has recent data (within last 7 days)
+          const daysSinceLastSeen = (Date.now() - timestamp) / (1000 * 60 * 60 * 24);
+          const isActive = daysSinceLastSeen <= 7;
+          
+          if (isActive) {
+            availableBatteries.push({
+              id: "0700",
+              name: "Pack Controller",
+              type: "PACK_CONTROLLER",
+              displayName: "Pack Controller (0700)",
+              lastSeen: new Date(timestamp),
+              isActive: true,
+              fullBatteryId: tagId,
+              source: 'scan',
+              daysSinceLastSeen: Math.round(daysSinceLastSeen * 10) / 10
+            });
+          }
+        }
+      });
+
+      log(LOG_LEVELS.INFO, `PackController table scan complete`);
+      
+    } catch (error) {
+      log(LOG_LEVELS.WARN, `Error scanning PackController table:`, error);
+    }
+
+    // Sort by last seen date (most recent first)
+    availableBatteries.sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime());
+
+    log(LOG_LEVELS.INFO, `Battery scan complete: found ${availableBatteries.length} total active batteries/controllers`);
+    
+    return {
+      success: true,
+      data: availableBatteries,
+      count: availableBatteries.length,
+      scannedTagIDs: Array.from(scannedTagIDs)
+    };
+    
+  } catch (error) {
+    log(LOG_LEVELS.ERROR, `Error scanning for available batteries:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: [],
+      count: 0
+    };
+  }
+};
+
+/**
+ * Quick check for specific battery IDs to see if they exist and are active
+ */
+export const checkBatteryAvailability = async (docClient, batteryIds) => {
+  try {
+    log(LOG_LEVELS.INFO, `Checking availability for specific batteries:`, batteryIds);
+    
+    const results = [];
+    
+    for (const batteryId of batteryIds) {
+      try {
+        const batteryType = detectBatteryType(batteryId);
+        let hasRecentData = false;
+        let lastSeen = null;
+        
+        if (batteryType === 'PACK_CONTROLLER') {
+          // Check PackController
+          const databaseTagId = (batteryId === "0700") ? "PACK-CONTROLLER" : batteryId;
+          const latestReading = await getLatestPackControllerReading(docClient, databaseTagId);
+          
+          if (latestReading) {
+            const timestamp = parseInt(latestReading.Timestamp?.N || latestReading.Timestamp) * 1000;
+            lastSeen = new Date(timestamp);
+            const hoursSinceLastSeen = (Date.now() - timestamp) / (1000 * 60 * 60);
+            hasRecentData = hoursSinceLastSeen <= 168; // Within last week
+          }
+        } else {
+          // Check BMS battery
+          const fullBatteryId = `BAT-${batteryId}`;
+          const latestReading = await getLatestReading(docClient, fullBatteryId);
+          
+          if (latestReading) {
+            const timestamp = parseInt(latestReading.Timestamp?.N || latestReading.Timestamp) * 1000;
+            lastSeen = new Date(timestamp);
+            const hoursSinceLastSeen = (Date.now() - timestamp) / (1000 * 60 * 60);
+            hasRecentData = hoursSinceLastSeen <= 168; // Within last week
+          }
+        }
+        
+        results.push({
+          id: batteryId,
+          type: batteryType,
+          isAvailable: hasRecentData,
+          lastSeen: lastSeen,
+          displayName: batteryType === 'PACK_CONTROLLER' ? 'Pack Controller (0700)' : `Battery ${batteryId}`
+        });
+        
+      } catch (error) {
+        log(LOG_LEVELS.WARN, `Error checking battery ${batteryId}:`, error);
+        results.push({
+          id: batteryId,
+          type: detectBatteryType(batteryId),
+          isAvailable: false,
+          lastSeen: null,
+          error: error.message
+        });
+      }
+    }
+    
+    log(LOG_LEVELS.INFO, `Battery availability check complete:`, results);
+    return results;
+    
+  } catch (error) {
+    log(LOG_LEVELS.ERROR, `Error in battery availability check:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Get a comprehensive list of all available batteries using both scanning and targeted checking
+ */
+export const getComprehensiveBatteryList = async (docClient) => {
+  try {
+    log(LOG_LEVELS.INFO, `Getting comprehensive battery list`);
+    
+    // Start with a scan to find batteries
+    const scanResult = await scanForAvailableBatteries(docClient, 200);
+    let allBatteries = scanResult.data || [];
+    
+    // Also check common battery IDs that might not appear in the scan
+    const commonBatteryIds = [
+      '0x400', '0x401', '0x402', '0x403', '0x404', '0x405',
+      '0x480', '0x481', '0x482', '0x483', '0x484', '0x485',
+      '0x440', '0x441', '0x442', '0x443', '0x444', '0x445',
+      '0x460', '0x461', '0x462', '0x463', '0x464', '0x465',
+      '0700' // Pack Controller
+    ];
+    
+    // Filter out IDs we already found in the scan
+    const foundIds = new Set(allBatteries.map(b => b.id));
+    const idsToCheck = commonBatteryIds.filter(id => !foundIds.has(id));
+    
+    if (idsToCheck.length > 0) {
+      const availabilityResults = await checkBatteryAvailability(docClient, idsToCheck);
+      
+      // Add available batteries from the targeted check
+      availabilityResults.forEach(result => {
+        if (result.isAvailable) {
+          allBatteries.push({
+            id: result.id,
+            name: result.displayName,
+            type: result.type,
+            displayName: result.displayName,
+            lastSeen: result.lastSeen,
+            isActive: true,
+            source: 'targeted_check'
+          });
+        }
+      });
+    }
+    
+    // Remove duplicates and sort by last seen
+    const uniqueBatteries = [];
+    const seenIds = new Set();
+    
+    allBatteries.forEach(battery => {
+      if (!seenIds.has(battery.id)) {
+        seenIds.add(battery.id);
+        uniqueBatteries.push(battery);
+      }
+    });
+    
+    // Sort by last seen date (most recent first)
+    uniqueBatteries.sort((a, b) => {
+      if (!a.lastSeen && !b.lastSeen) return 0;
+      if (!a.lastSeen) return 1;
+      if (!b.lastSeen) return -1;
+      return b.lastSeen.getTime() - a.lastSeen.getTime();
+    });
+    
+    log(LOG_LEVELS.INFO, `Comprehensive battery list complete: ${uniqueBatteries.length} batteries found`);
+    
+    return {
+      success: true,
+      data: uniqueBatteries,
+      count: uniqueBatteries.length,
+      methods: ['scan', 'targeted_check']
+    };
+    
+  } catch (error) {
+    log(LOG_LEVELS.ERROR, `Error getting comprehensive battery list:`, error);
+    return {
+      success: false,
+      error: error.message,
+      data: [],
+      count: 0
+    };
+  }
+};
