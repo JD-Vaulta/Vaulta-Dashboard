@@ -18,6 +18,7 @@ const NotificationManager = ({ user }) => {
         borderRadius: "10px",
         display: "flex",
         flexDirection: "column",
+        minHeight: "600px", // Added minimum height
       }}
     >
       <h2
@@ -40,24 +41,28 @@ const NotificationManager = ({ user }) => {
           padding: "20px",
           borderRadius: "8px",
           boxShadow: "0px 2px 6px rgba(0,0,0,0.05)",
-          overflow: "auto",
+          overflow: "visible", // Changed from "auto" to "visible" to remove scroll
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         <UserEmailDisplay user={user} />
 
         <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {activeTab === "subscribe" ? (
-          <TopicSubscription
-            user={user}
-            setSubscriptionStatus={setSubscriptionStatus}
-          />
-        ) : (
-          <SubscriptionManager
-            user={user}
-            setSubscriptionStatus={setSubscriptionStatus}
-          />
-        )}
+        <div style={{ flex: 1 }}>
+          {activeTab === "subscribe" ? (
+            <TopicSubscription
+              user={user}
+              setSubscriptionStatus={setSubscriptionStatus}
+            />
+          ) : (
+            <SubscriptionManager
+              user={user}
+              setSubscriptionStatus={setSubscriptionStatus}
+            />
+          )}
+        </div>
 
         {subscriptionStatus && (
           <div

@@ -25,18 +25,23 @@ ChartJS.register(
   Filler
 );
 
-const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
-  primary: "#007BFF",
-  success: "#28A745",
-  warning: "#FFC107",
-  error: "#DC3545",
-  accent: "#17A2B8",
-  white: "#FFFFFF",
-  lightGrey: "#E9ECEF",
-  textDark: "#343A40",
-  lightGreen:"#70ab5c",
-  textLight: "#6C757D"
-}, isMobile = false }) => {
+const BatteryMetricsCarousel = ({
+  bmsState = {},
+  roundValue = (v) => Math.round(v),
+  colors = {
+    primary: "#007BFF",
+    success: "#28A745",
+    warning: "#FFC107",
+    error: "#DC3545",
+    accent: "#17A2B8",
+    white: "#FFFFFF",
+    lightGrey: "#E9ECEF",
+    textDark: "#343A40",
+    lightGreen: "#70ab5c",
+    textLight: "#6C757D",
+  },
+  isMobile = false,
+}) => {
   // Generate historical data
   const [history, setHistory] = useState({
     SOCPercent: [82, 83, 85, 87, 89, 90, 92, 91, 90, 89],
@@ -89,13 +94,14 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
     {
       title: "State of Charge",
       key: "SOCPercent",
-      value: parseFloat(bmsState.SOCPercent?.N ),
+      value: parseFloat(bmsState.SOCPercent?.N),
       maxValue: 100,
       unit: "%",
-      additionalInfo: `${roundValue(bmsState.SOCAh?.N )} Ah`,
-      status: "Charging",
+      additionalInfo: `${roundValue(bmsState.SOCAh?.N)} Ah`,
+      status:
+        parseFloat(bmsState.TotalCurrent?.N) > 0 ? "Discharging" : "Charging",
       statusColor: colors.success,
-      trend: "+2.5%",
+      trend: "",
       gaugeColor: (val) => {
         if (val > 80) return colors.success;
         if (val > 50) return colors.warning;
@@ -110,9 +116,13 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
       maxValue: 100,
       unit: "%",
       additionalInfo: "3.35V-3.37V",
-      status: "Balanced",
+      status:
+        parseFloat(bmsState.Node01BalanceStatus?.N) == 0 &&
+        parseFloat(bmsState.Node00BalanceStatus?.N) == 0
+          ? "Balanced"
+          : "Not Balanced",
       statusColor: colors.success,
-      trend: "+0.2%",
+      trend: "",
       gaugeColor: colors.success,
       icon: "",
     },
@@ -139,10 +149,10 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
       value: parseFloat(bmsState.SOH_Estimate?.N),
       maxValue: 100,
       unit: "%",
-      additionalInfo: "Uptime 99%",
+      additionalInfo: "",
       status: "Excellent",
       statusColor: colors.success,
-      trend: "0%",
+      trend: "",
       gaugeColor: colors.success,
       icon: "",
     },
@@ -207,9 +217,10 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
     const historyData = history[metric.key] || [];
     const chartData = createChartData(historyData, color);
     const percentage = (metric.value / metric.maxValue) * 100;
-    const gaugeColor = typeof metric.gaugeColor === 'function' 
-      ? metric.gaugeColor(metric.value) 
-      : metric.gaugeColor;
+    const gaugeColor =
+      typeof metric.gaugeColor === "function"
+        ? metric.gaugeColor(metric.value)
+        : metric.gaugeColor;
 
     return (
       <div
@@ -238,15 +249,19 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
         }}
       >
         {/* Header with icon and title */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          marginBottom: "12px",
-        }}>
-          <div style={{
-            fontSize: isMobile ? "20px" : "24px",
-            marginRight: "8px",
-          }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            marginBottom: "12px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: isMobile ? "20px" : "24px",
+              marginRight: "8px",
+            }}
+          >
             {metric.icon}
           </div>
           <h4
@@ -262,26 +277,32 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
         </div>
 
         {/* Main content - Gauge and info */}
-        <div style={{
-          display: "flex",
-          flex: 1,
-          gap: "12px",
-          minHeight: 0,
-        }}>
-          {/* Gauge section */}
-          <div style={{
-            flex: "0 0 auto",
+        <div
+          style={{
             display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            width: isMobile ? "100px" : "121px",
-          }}>
-            <div style={{
-              width: "100%",
-              height: isMobile ? "80px" : "100px",
-              position: "relative",
-            }}>
+            flex: 1,
+            gap: "12px",
+            minHeight: 0,
+          }}
+        >
+          {/* Gauge section */}
+          <div
+            style={{
+              flex: "0 0 auto",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              width: isMobile ? "100px" : "121px",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                height: isMobile ? "80px" : "100px",
+                position: "relative",
+              }}
+            >
               <CircularProgressbar
                 value={metric.value}
                 maxValue={metric.maxValue}
@@ -293,11 +314,11 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
                   textColor: colors.textDark,
                   trailColor: colors.white,
                   pathTransitionDuration: 0.5,
-                  strokeLinecap: 'butt',
+                  strokeLinecap: "butt",
                   text: {
-                    fontWeight: 'bold',
-                    dominantBaseline: 'middle',
-                    textAnchor: 'middle',
+                    fontWeight: "bold",
+                    dominantBaseline: "middle",
+                    textAnchor: "middle",
                   },
                 })}
               />
@@ -305,33 +326,41 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
           </div>
 
           {/* Info section */}
-          <div style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            minWidth: 0,
-          }}>
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              minWidth: 0,
+            }}
+          >
             {/* Additional info */}
-            <div style={{
-              fontSize: isMobile ? "12px" : "14px",
-              color: colors.textLight,
-              marginBottom: "8px",
-            }}>
+            <div
+              style={{
+                fontSize: isMobile ? "12px" : "14px",
+                color: colors.textLight,
+                marginBottom: "8px",
+              }}
+            >
               {metric.additionalInfo}
             </div>
 
             {/* Status and trend */}
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "4px",
-            }}>
-              <div style={{
+            <div
+              style={{
                 display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}>
+                flexDirection: "column",
+                gap: "4px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
                 <span
                   style={{
                     fontSize: isMobile ? "10px" : "12px",
@@ -347,7 +376,9 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
                 <span
                   style={{
                     fontSize: isMobile ? "10px" : "12px",
-                    color: metric.trend.startsWith("+") ? colors.success : colors.error,
+                    color: metric.trend.startsWith("+")
+                      ? colors.success
+                      : colors.error,
                     fontWeight: "600",
                   }}
                 >
@@ -356,11 +387,13 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
               </div>
 
               {/* Mini chart */}
-              <div style={{
-                height: "40px",
-                width: "100%",
-                position: "relative",
-              }}>
+              <div
+                style={{
+                  height: "40px",
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
                 <Line
                   data={chartData}
                   options={chartOptions}
@@ -375,14 +408,16 @@ const BatteryMetricsCarousel = ({ bmsState = {}, roundValue = (v) => Math.round(
   };
 
   return (
-    <div style={{
-      height: "100%",
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)",
-      gridTemplateRows: isMobile ? "repeat(4, 1fr)" : "repeat(2, 1fr)",
-      gap: isMobile ? "12px" : "16px",
-      padding: isMobile ? "8px" : "12px",
-    }}>
+    <div
+      style={{
+        height: "100%",
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)",
+        gridTemplateRows: isMobile ? "repeat(4, 1fr)" : "repeat(2, 1fr)",
+        gap: isMobile ? "12px" : "16px",
+        padding: isMobile ? "8px" : "12px",
+      }}
+    >
       {metricsData.map((metric, index) => (
         <MetricCard key={index} metric={metric} />
       ))}

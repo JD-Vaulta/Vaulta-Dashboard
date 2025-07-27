@@ -16,10 +16,10 @@ export const processEnergyData = (lambdaResponse) => {
     return Object.entries(lambdaResponse.hourlyAverages)
       .map(([timestamp, data]) => ({
         timestamp,
-        TotalCurrent: data.TotalCurrent || "N/A",
+        TotalCurrent: data.TotalCurrent || 0,
         Power: data.Power || 0,
-        TotalBattVoltage: data.TotalBattVoltage || "N/A",
-        TotalLoadVoltage: data.TotalLoadVoltage || "N/A",
+        TotalBattVoltage: data.TotalBattVoltage || 0,
+        TotalLoadVoltage: data.TotalLoadVoltage || 0,
       }))
       .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
       .slice(-24);
@@ -57,28 +57,55 @@ export const getKeyInsightMetrics = (data, bmsData, lambdaResponse) => {
       ? dailySummaries[dailySummaries.length - 1]
       : null;
 
+  // Get SOC from current BMS data
+  const currentSOC = parseFloat(
+    bmsData?.lastMinuteData?.[0]?.SOCPercent?.N || 0
+  );
+
+  // Calculate metrics with fallbacks for no data
+  const totalPowerConsumed = latestDailySummary?.TotalPower
+    ? `${latestDailySummary.TotalPower.toFixed(2)} Wh`
+    : "No data";
+
+  const avgPowerConsumption = latestDailySummary?.AveragePower
+    ? `${latestDailySummary.AveragePower.toFixed(2)} W`
+    : "No data";
+
+  const positiveHours = latestDailySummary
+    ? `${latestDailySummary.PositiveHours} hrs`
+    : "No data";
+
+  // Calculate peak consumption and charging from last 24 hours
+  const currentValues = last24Hours
+    .map((h) => h.TotalCurrent)
+    .filter((val) => val !== 0 && !isNaN(val));
+
+  const peakPowerConsumption =
+    currentValues.length > 0
+      ? `${Math.max(...currentValues).toFixed(2)} A`
+      : "No data";
+
+  const peakChargingPower =
+    currentValues.length > 0
+      ? `${Math.min(...currentValues).toFixed(2)} A`
+      : "No data";
+
+  // Determine current status
+  let currentPowerStatus = "Unknown";
+  if (latestHour?.Power !== undefined) {
+    currentPowerStatus = latestHour.Power > 0 ? "Consuming" : "Charging";
+  } else if (currentValues.length > 0) {
+    const latestCurrent = currentValues[currentValues.length - 1];
+    currentPowerStatus = latestCurrent > 0 ? "Consuming" : "Charging";
+  }
+
   return {
-    totalPowerConsumed: latestDailySummary
-      ? `${latestDailySummary.TotalPower?.toFixed(2)} Wh`
-      : "N/A",
-    avgPowerConsumption: latestDailySummary
-      ? `${latestDailySummary.AveragePower?.toFixed(2)} W`
-      : "N/A",
-    positiveHours: latestDailySummary
-      ? `${latestDailySummary.PositiveHours} hrs`
-      : "N/A",
-    peakPowerConsumption:
-      last24Hours.length > 0
-        ? `${Math.max(...last24Hours.map((h) => h.TotalCurrent)).toFixed(2)} A`
-        : "N/A",
-    peakChargingPower:
-      last24Hours.length > 0
-        ? `${Math.min(...last24Hours.map((h) => h.TotalCurrent)).toFixed(2)} A`
-        : "N/A",
-    currentPowerStatus:
-      latestHour && latestHour.Power > 0 ? "Consuming" : "Charging",
-    systemHealth: `${parseFloat(
-      bmsData?.lastMinuteData?.[0]?.SOCPercent?.N || 0
-    ).toFixed(2)}%`,
+    totalPowerConsumed,
+    avgPowerConsumption,
+    positiveHours,
+    peakPowerConsumption,
+    peakChargingPower,
+    currentPowerStatus,
+    systemHealth: `${currentSOC.toFixed(1)}%`,
   };
 };

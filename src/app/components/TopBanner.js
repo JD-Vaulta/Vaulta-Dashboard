@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import logo from "../../vaulta_logo.svg";
 import { signOut } from "aws-amplify/auth";
-import BatterySelector from "../../components/common/BatterySelector.js"
-import { useBatteryContext } from "../../contexts/BatteryContext.js";
 
 const TopBanner = ({
   bmsState,
@@ -20,9 +18,6 @@ const TopBanner = ({
   const dropdownRef = useRef(null);
   const [userEmail, setUserEmail] = useState(null);
 
-  // Battery context
-  const { hasRegisteredBatteries, selectedBattery, batteryCount } = useBatteryContext();
-
   // Format timestamps
   const formatTime = (date) => {
     if (!date) return "N/A";
@@ -34,15 +29,6 @@ const TopBanner = ({
     const date = new Date(timestamp * 1000);
     return date.toLocaleString();
   };
-
-  // Get current state based on data type
-  const currentState = dataType === "packcontroller" ? packControllerState : bmsState;
-  const deviceId = dataType === "packcontroller" 
-    ? currentState?.DeviceId?.N || "N/A"
-    : currentState?.DeviceId?.N || "N/A";
-  const tagId = dataType === "packcontroller"
-    ? currentState?.TagID || "N/A"
-    : currentState?.TagID || "N/A";
 
   // Get user email
   useEffect(() => {
@@ -177,7 +163,7 @@ const TopBanner = ({
           />
         </div>
 
-        {/* Title and Device Info */}
+        {/* Title */}
         <div style={{ flex: 1 }}>
           <h1
             style={{
@@ -187,22 +173,8 @@ const TopBanner = ({
               margin: 0,
             }}
           >
-            {dataType === "packcontroller" 
-              ? "Pack Controller Dashboard" 
-              : "Battery Management Dashboard"}
+            Battery Management Dashboard
           </h1>
-          <p
-            style={{
-              margin: "5px 0 0 0",
-              fontSize: "0.9rem",
-              color: "#666",
-            }}
-          >
-            Device: {deviceId} • TagID: {tagId} • Data Time:{" "}
-            {formatDataTimestamp(timestamp)} • Last Update:{" "}
-            {formatTime(lastUpdate)}
-            {isUpdating && " (Updating...)"}
-          </p>
         </div>
 
         {/* User Controls */}
@@ -280,9 +252,8 @@ const TopBanner = ({
       >
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           {menuItems.map((item, index) => {
-            const isBatteryManagement = item.path === "/battery-management";
             const isActiveItem = isActive(item.path);
-            
+
             return (
               <button
                 key={index}
@@ -291,37 +262,26 @@ const TopBanner = ({
                   display: "flex",
                   alignItems: "center",
                   padding: "8px 12px",
-                  backgroundColor: isActiveItem 
-                    ? "#4CAF50" 
-                    : isBatteryManagement 
-                      ? "#e3f2fd" 
-                      : "#fff",
-                  color: isActiveItem 
-                    ? "#fff" 
-                    : isBatteryManagement 
-                      ? "#1976d2" 
-                      : "#333",
-                  border: `1px solid ${isBatteryManagement ? "#2196F3" : "#e6e6e6"}`,
+                  backgroundColor: isActiveItem ? "#4CAF50" : "#fff",
+                  color: isActiveItem ? "#fff" : "#333",
+                  border: "1px solid #e6e6e6",
                   borderRadius: "5px",
                   cursor: "pointer",
                   fontSize: "0.9rem",
-                  fontWeight: isBatteryManagement ? "600" : "normal",
+                  fontWeight: "normal",
                   transition: "all 0.2s ease",
                 }}
                 onMouseOver={(e) => {
-                  if (!isActiveItem && isBatteryManagement) {
-                    e.target.style.backgroundColor = "#bbdefb";
+                  if (!isActiveItem) {
+                    e.target.style.backgroundColor = "#f5f5f5";
                   }
                 }}
                 onMouseOut={(e) => {
-                  if (!isActiveItem && isBatteryManagement) {
-                    e.target.style.backgroundColor = "#e3f2fd";
+                  if (!isActiveItem) {
+                    e.target.style.backgroundColor = "#fff";
                   }
                 }}
               >
-                {isBatteryManagement && (
-                  <span style={{ marginRight: "6px" }}> </span>
-                )}
                 {item.label}
               </button>
             );

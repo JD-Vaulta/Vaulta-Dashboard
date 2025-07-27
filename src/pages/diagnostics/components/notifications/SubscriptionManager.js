@@ -54,10 +54,11 @@ const SubscriptionManager = ({ user, setSubscriptionStatus }) => {
         Your current subscriptions:
       </p>
       <div
-        style={{
-          maxHeight: "250px",
-          overflowY: "auto",
-        }}
+        style={
+          {
+            // Removed maxHeight and overflowY to eliminate scrolling
+          }
+        }
       >
         {userSubscriptions.map((sub, index) => (
           <div
