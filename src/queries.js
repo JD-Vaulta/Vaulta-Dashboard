@@ -15,7 +15,7 @@ const LOG_LEVELS = {
   ERROR: 0,
   WARN: 1,
   INFO: 2,
-  DEBUG: 3
+  DEBUG: 3,
 };
 
 const CURRENT_LOG_LEVEL = LOG_LEVELS.INFO;
@@ -23,8 +23,10 @@ const CURRENT_LOG_LEVEL = LOG_LEVELS.INFO;
 const log = (level, message, data = null) => {
   if (level <= CURRENT_LOG_LEVEL) {
     const timestamp = new Date().toISOString();
-    const levelName = Object.keys(LOG_LEVELS).find(key => LOG_LEVELS[key] === level);
-    
+    const levelName = Object.keys(LOG_LEVELS).find(
+      (key) => LOG_LEVELS[key] === level
+    );
+
     if (data) {
       console.log(`[${timestamp}] [${levelName}] ${message}`, data);
     } else {
@@ -74,32 +76,37 @@ const convertDynamoDBFormat = (item) => {
 
 // Battery type detection
 export const detectBatteryType = (batteryId) => {
-  if (batteryId === '0700' || batteryId === 'PACK-CONTROLLER') {
-    return 'PACK_CONTROLLER';
+  if (batteryId === "0700" || batteryId === "PACK-CONTROLLER") {
+    return "PACK_CONTROLLER";
   }
-  return 'BMS';
+  return "BMS";
 };
 
 // Process PackController data into structured format
 const processPackControllerData = (items, isProgressive = false) => {
-  log(LOG_LEVELS.DEBUG, `Processing ${items.length} PackController data items${isProgressive ? ' (progressive)' : ''}`);
+  log(
+    LOG_LEVELS.DEBUG,
+    `Processing ${items.length} PackController data items${
+      isProgressive ? " (progressive)" : ""
+    }`
+  );
 
   const structuredData = {
-    type: 'PACK_CONTROLLER',
+    type: "PACK_CONTROLLER",
     System: {
       systemTemp: { values: [], timestamps: [] },
       totalVoltage: { values: [], timestamps: [] },
       socPercent: { values: [], timestamps: [] },
       sohPercent: { values: [], timestamps: [] },
-      carbonOffset: { values: [], timestamps: [] }
+      carbonOffset: { values: [], timestamps: [] },
     },
     Latest: {
       systemTemp: 0,
       totalVoltage: 0,
       socPercent: 0,
       sohPercent: 0,
-      carbonOffset: 0
-    }
+      carbonOffset: 0,
+    },
   };
 
   if (items.length === 0) {
@@ -118,13 +125,16 @@ const processPackControllerData = (items, isProgressive = false) => {
   if (isProgressive && items.length > 2000) {
     const step = Math.ceil(items.length / 2000);
     processItems = items.filter((_, index) => index % step === 0);
-    log(LOG_LEVELS.DEBUG, `Progressive sampling: using ${processItems.length} of ${items.length} items`);
+    log(
+      LOG_LEVELS.DEBUG,
+      `Progressive sampling: using ${processItems.length} of ${items.length} items`
+    );
   }
 
   // Process each item
   processItems.forEach((item, index) => {
     const timestamp = safeExtractValue(item.Timestamp);
-    
+
     // Extract system metrics
     const systemTemp = safeExtractValue(item.SystemTemp) || 0;
     const totalVoltage = safeExtractValue(item.TotalVoltage) || 0;
@@ -135,16 +145,16 @@ const processPackControllerData = (items, isProgressive = false) => {
     // Add to time series
     structuredData.System.systemTemp.values.push(systemTemp);
     structuredData.System.systemTemp.timestamps.push(timestamp);
-    
+
     structuredData.System.totalVoltage.values.push(totalVoltage);
     structuredData.System.totalVoltage.timestamps.push(timestamp);
-    
+
     structuredData.System.socPercent.values.push(socPercent);
     structuredData.System.socPercent.timestamps.push(timestamp);
-    
+
     structuredData.System.sohPercent.values.push(sohPercent);
     structuredData.System.sohPercent.timestamps.push(timestamp);
-    
+
     structuredData.System.carbonOffset.values.push(carbonOffset);
     structuredData.System.carbonOffset.timestamps.push(timestamp);
 
@@ -155,7 +165,7 @@ const processPackControllerData = (items, isProgressive = false) => {
         totalVoltage,
         socPercent,
         sohPercent,
-        carbonOffset
+        carbonOffset,
       };
     }
   });
@@ -168,7 +178,7 @@ const processPackControllerData = (items, isProgressive = false) => {
     carbonOffsetPoints: structuredData.System.carbonOffset.values.length,
     totalItems: processItems.length,
     originalItems: items.length,
-    isProgressive: isProgressive
+    isProgressive: isProgressive,
   });
 
   return structuredData;
@@ -176,10 +186,15 @@ const processPackControllerData = (items, isProgressive = false) => {
 
 // Process raw DynamoDB data into structured format with progressive optimization
 const processDataItems = (items, isProgressive = false) => {
-  log(LOG_LEVELS.DEBUG, `Processing ${items.length} BMS data items${isProgressive ? ' (progressive)' : ''}`);
+  log(
+    LOG_LEVELS.DEBUG,
+    `Processing ${items.length} BMS data items${
+      isProgressive ? " (progressive)" : ""
+    }`
+  );
 
   const structuredData = {
-    type: 'BMS',
+    type: "BMS",
     Node0: {
       voltage: { cellVoltages: Array.from({ length: 14 }, () => []) },
       temperature: {},
@@ -227,7 +242,7 @@ const processDataItems = (items, isProgressive = false) => {
   // Initialize temperature sensor tracking
   const tempSensors = {
     Node0: new Set(),
-    Node1: new Set()
+    Node1: new Set(),
   };
 
   // For progressive loading, we may want to sample the data to prevent overwhelming the UI
@@ -236,39 +251,56 @@ const processDataItems = (items, isProgressive = false) => {
     // Sample every nth item for progressive display to keep UI responsive
     const step = Math.ceil(items.length / 2000);
     processItems = items.filter((_, index) => index % step === 0);
-    log(LOG_LEVELS.DEBUG, `Progressive sampling: using ${processItems.length} of ${items.length} items`);
+    log(
+      LOG_LEVELS.DEBUG,
+      `Progressive sampling: using ${processItems.length} of ${items.length} items`
+    );
   }
 
   // Process each item
   processItems.forEach((item, index) => {
     // Extract pack data from latest item (always use latest values)
     if (index === processItems.length - 1) {
-      structuredData.Pack.totalBattVoltage = safeExtractValue(item.TotalBattVoltage) || 0;
-      structuredData.Pack.totalLoadVoltage = safeExtractValue(item.TotalLoadVoltage) || 0;
-      structuredData.Pack.totalCurrent = safeExtractValue(item.TotalCurrent) || 0;
+      structuredData.Pack.totalBattVoltage =
+        safeExtractValue(item.TotalBattVoltage) || 0;
+      structuredData.Pack.totalLoadVoltage =
+        safeExtractValue(item.TotalLoadVoltage) || 0;
+      structuredData.Pack.totalCurrent =
+        safeExtractValue(item.TotalCurrent) || 0;
 
       // Cell data
-      structuredData.Cell.maxCellVoltage = safeExtractValue(item.MaximumCellVoltage) || 0;
-      structuredData.Cell.minCellVoltage = safeExtractValue(item.MinimumCellVoltage) || 0;
-      structuredData.Cell.thresholdOverVoltage = safeExtractValue(item.CellThresholdOverVoltage) || 0;
-      structuredData.Cell.thresholdUnderVoltage = safeExtractValue(item.CellThresholdUnderVoltage) || 0;
+      structuredData.Cell.maxCellVoltage =
+        safeExtractValue(item.MaximumCellVoltage) || 0;
+      structuredData.Cell.minCellVoltage =
+        safeExtractValue(item.MinimumCellVoltage) || 0;
+      structuredData.Cell.thresholdOverVoltage =
+        safeExtractValue(item.CellThresholdOverVoltage) || 0;
+      structuredData.Cell.thresholdUnderVoltage =
+        safeExtractValue(item.CellThresholdUnderVoltage) || 0;
 
       // Temperature data
-      structuredData.Temperature.maxCellTemp = safeExtractValue(item.MaxCellTemp) || 0;
-      structuredData.Temperature.minCellTemp = safeExtractValue(item.MinCellTemp) || 0;
-      structuredData.Temperature.thresholdOverTemp = safeExtractValue(item.TempThresholdOverTemp) || 0;
-      structuredData.Temperature.thresholdUnderTemp = safeExtractValue(item.TempThresholdUnderTemp) || 0;
-      structuredData.Temperature.maxCellTempNode = safeExtractValue(item.MaxCellTempNode) || 0;
-      structuredData.Temperature.minCellTempNode = safeExtractValue(item.MinCellTempNode) || 0;
+      structuredData.Temperature.maxCellTemp =
+        safeExtractValue(item.MaxCellTemp) || 0;
+      structuredData.Temperature.minCellTemp =
+        safeExtractValue(item.MinCellTemp) || 0;
+      structuredData.Temperature.thresholdOverTemp =
+        safeExtractValue(item.TempThresholdOverTemp) || 0;
+      structuredData.Temperature.thresholdUnderTemp =
+        safeExtractValue(item.TempThresholdUnderTemp) || 0;
+      structuredData.Temperature.maxCellTempNode =
+        safeExtractValue(item.MaxCellTempNode) || 0;
+      structuredData.Temperature.minCellTempNode =
+        safeExtractValue(item.MinCellTempNode) || 0;
 
       // SOC data
       structuredData.SOC.socPercent = safeExtractValue(item.SOCPercent) || 0;
-      structuredData.SOC.balanceSOCPercent = safeExtractValue(item.BalanceSOCPercent) || 0;
+      structuredData.SOC.balanceSOCPercent =
+        safeExtractValue(item.BalanceSOCPercent) || 0;
     }
 
     // Process Node 0 cell voltages
     for (let cellIndex = 0; cellIndex < 14; cellIndex++) {
-      const cellKey = `Node00Cell${cellIndex.toString().padStart(2, '0')}`;
+      const cellKey = `Node00Cell${cellIndex.toString().padStart(2, "0")}`;
       const cellValue = safeExtractValue(item[cellKey]);
       if (cellValue !== null && cellValue !== undefined && cellValue > 0) {
         structuredData.Node0.voltage.cellVoltages[cellIndex].push(cellValue);
@@ -277,7 +309,7 @@ const processDataItems = (items, isProgressive = false) => {
 
     // Process Node 1 cell voltages
     for (let cellIndex = 0; cellIndex < 14; cellIndex++) {
-      const cellKey = `Node01Cell${cellIndex.toString().padStart(2, '0')}`;
+      const cellKey = `Node01Cell${cellIndex.toString().padStart(2, "0")}`;
       const cellValue = safeExtractValue(item[cellKey]);
       if (cellValue !== null && cellValue !== undefined && cellValue > 0) {
         structuredData.Node1.voltage.cellVoltages[cellIndex].push(cellValue);
@@ -286,10 +318,10 @@ const processDataItems = (items, isProgressive = false) => {
 
     // Process Node 0 temperatures
     for (let tempIndex = 0; tempIndex < 10; tempIndex++) {
-      const tempKey = `Node00Temp${tempIndex.toString().padStart(2, '0')}`;
+      const tempKey = `Node00Temp${tempIndex.toString().padStart(2, "0")}`;
       const tempValue = safeExtractValue(item[tempKey]);
       if (tempValue !== null && tempValue !== undefined && tempValue > 0) {
-        const sensorName = `Temp${tempIndex.toString().padStart(2, '0')}`;
+        const sensorName = `Temp${tempIndex.toString().padStart(2, "0")}`;
         if (!structuredData.Node0.temperature[sensorName]) {
           structuredData.Node0.temperature[sensorName] = [];
         }
@@ -300,10 +332,10 @@ const processDataItems = (items, isProgressive = false) => {
 
     // Process Node 1 temperatures
     for (let tempIndex = 0; tempIndex < 10; tempIndex++) {
-      const tempKey = `Node01Temp${tempIndex.toString().padStart(2, '0')}`;
+      const tempKey = `Node01Temp${tempIndex.toString().padStart(2, "0")}`;
       const tempValue = safeExtractValue(item[tempKey]);
       if (tempValue !== null && tempValue !== undefined && tempValue > 0) {
-        const sensorName = `Temp${tempIndex.toString().padStart(2, '0')}`;
+        const sensorName = `Temp${tempIndex.toString().padStart(2, "0")}`;
         if (!structuredData.Node1.temperature[sensorName]) {
           structuredData.Node1.temperature[sensorName] = [];
         }
@@ -314,13 +346,17 @@ const processDataItems = (items, isProgressive = false) => {
   });
 
   log(LOG_LEVELS.DEBUG, `Processed BMS data structure:`, {
-    node0CellArrays: structuredData.Node0.voltage.cellVoltages.filter(arr => arr.length > 0).length,
-    node1CellArrays: structuredData.Node1.voltage.cellVoltages.filter(arr => arr.length > 0).length,
+    node0CellArrays: structuredData.Node0.voltage.cellVoltages.filter(
+      (arr) => arr.length > 0
+    ).length,
+    node1CellArrays: structuredData.Node1.voltage.cellVoltages.filter(
+      (arr) => arr.length > 0
+    ).length,
     node0TempSensors: tempSensors.Node0.size,
     node1TempSensors: tempSensors.Node1.size,
     totalItems: processItems.length,
     originalItems: items.length,
-    isProgressive: isProgressive
+    isProgressive: isProgressive,
   });
 
   return structuredData;
@@ -330,7 +366,7 @@ const processDataItems = (items, isProgressive = false) => {
 export const initDynamoDB = async () => {
   try {
     const { credentials } = await fetchAuthSession();
-    
+
     AWS.config.update({
       region: awsconfig.aws_project_region,
       credentials: AWS.Credentials(credentials),
@@ -350,22 +386,26 @@ export const initDynamoDB = async () => {
  */
 export const getLatestReading = async (docClient, batteryId) => {
   try {
-    log(LOG_LEVELS.INFO, `Getting latest reading for battery: ${batteryId}`);
-    
+    log(
+      LOG_LEVELS.INFO,
+      `Getting second latest reading for battery: ${batteryId}`
+    );
+
     const params = {
       TableName: BMS_TABLE_NAME,
       KeyConditionExpression: "TagID = :tid",
       ExpressionAttributeValues: {
         ":tid": batteryId,
       },
-      Limit: 1,
+      Limit: 2, // Get the last 2 items
       ScanIndexForward: false,
     };
 
     const result = await docClient.query(params).promise();
-    
-    if (result.Items.length > 0) {
-      const item = result.Items[0];
+
+    // Check if we have at least 2 items to get the second-to-last
+    if (result.Items.length >= 2) {
+      const item = result.Items[1]; // Second item is the second-to-last
       const convertedItem = {};
 
       for (const [key, value] of Object.entries(item)) {
@@ -383,11 +423,22 @@ export const getLatestReading = async (docClient, batteryId) => {
       }
 
       return convertedItem;
+    } else if (result.Items.length === 1) {
+      log(
+        LOG_LEVELS.WARN,
+        `Only one reading found for battery: ${batteryId}, cannot get second latest`
+      );
+      return null;
     }
 
+    log(LOG_LEVELS.WARN, `No readings found for battery: ${batteryId}`);
     return null;
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting latest reading for ${batteryId}:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting second latest reading for ${batteryId}:`,
+      error
+    );
     throw error;
   }
 };
@@ -408,7 +459,7 @@ export const getDataWithPagination = async (
       startTime: new Date(startTime * 1000).toISOString(),
       endTime: new Date(endTime * 1000).toISOString(),
       duration: `${(endTime - startTime) / 60} minutes`,
-      batteryId: batteryId
+      batteryId: batteryId,
     });
 
     let allItems = [];
@@ -418,7 +469,7 @@ export const getDataWithPagination = async (
 
     do {
       pageCount++;
-      
+
       const params = {
         TableName: BMS_TABLE_NAME,
         KeyConditionExpression: "TagID = :tid AND #ts BETWEEN :start AND :end",
@@ -460,20 +511,27 @@ export const getDataWithPagination = async (
         }
       }
 
-      log(LOG_LEVELS.DEBUG, `Fetching page ${pageCount} with params:`, { 
+      log(LOG_LEVELS.DEBUG, `Fetching page ${pageCount} with params:`, {
         hasLastKey: !!lastEvaluatedKey,
         limit: params.Limit,
         batteryId: params.ExpressionAttributeValues[":tid"],
-        startTime: new Date(params.ExpressionAttributeValues[":start"] * 1000).toISOString(),
-        endTime: new Date(params.ExpressionAttributeValues[":end"] * 1000).toISOString()
+        startTime: new Date(
+          params.ExpressionAttributeValues[":start"] * 1000
+        ).toISOString(),
+        endTime: new Date(
+          params.ExpressionAttributeValues[":end"] * 1000
+        ).toISOString(),
       });
 
       const result = await docClient.query(params).promise();
-      
+
       allItems = allItems.concat(result.Items);
       lastEvaluatedKey = result.LastEvaluatedKey;
 
-      log(LOG_LEVELS.INFO, `Page ${pageCount}: fetched ${result.Items.length} items, total: ${allItems.length}`);
+      log(
+        LOG_LEVELS.INFO,
+        `Page ${pageCount}: fetched ${result.Items.length} items, total: ${allItems.length}`
+      );
 
       // Call progress callback with partial data for PROGRESSIVE PLOTTING
       if (progressCallback && allItems.length > 0) {
@@ -482,17 +540,23 @@ export const getDataWithPagination = async (
           current: pageCount,
           total: Math.max(pageCount + (lastEvaluatedKey ? 5 : 0), pageCount), // Estimate total pages
           message: `Fetched ${allItems.length} records (Page ${pageCount}) - Progressive plotting...`,
-          partialData: partialData // This enables real-time chart updates
+          partialData: partialData, // This enables real-time chart updates
         });
       }
-
     } while (lastEvaluatedKey && pageCount < maxPages);
 
-    log(LOG_LEVELS.INFO, `Completed pagination: ${allItems.length} total items in ${pageCount} pages`);
+    log(
+      LOG_LEVELS.INFO,
+      `Completed pagination: ${allItems.length} total items in ${pageCount} pages`
+    );
 
     return allItems.map(convertDynamoDBFormat);
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting paginated data for ${batteryId}:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting paginated data for ${batteryId}:`,
+      error
+    );
     throw error;
   }
 };
@@ -509,13 +573,13 @@ export const getLastMinuteData = async (
   try {
     const now = Math.floor(Date.now() / 1000);
     const oneMinuteAgo = now - 60;
-    
+
     log(LOG_LEVELS.INFO, `Getting last minute data for battery: ${batteryId}`, {
       startTime: new Date(oneMinuteAgo * 1000).toISOString(),
       endTime: new Date(now * 1000).toISOString(),
-      batteryId: batteryId
+      batteryId: batteryId,
     });
-    
+
     return await getDataWithPagination(
       docClient,
       batteryId,
@@ -525,7 +589,11 @@ export const getLastMinuteData = async (
       attributes
     );
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting last minute data for ${batteryId}:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting last minute data for ${batteryId}:`,
+      error
+    );
     throw error;
   }
 };
@@ -542,13 +610,13 @@ export const getLastDayData = async (
   try {
     const now = Math.floor(Date.now() / 1000);
     const oneDayAgo = now - 86400;
-    
+
     log(LOG_LEVELS.INFO, `Getting last day data for battery: ${batteryId}`, {
       startTime: new Date(oneDayAgo * 1000).toISOString(),
       endTime: new Date(now * 1000).toISOString(),
-      batteryId: batteryId
+      batteryId: batteryId,
     });
-    
+
     return await getDataWithPagination(
       docClient,
       batteryId,
@@ -558,7 +626,11 @@ export const getLastDayData = async (
       attributes
     );
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting last day data for ${batteryId}:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting last day data for ${batteryId}:`,
+      error
+    );
     throw error;
   }
 };
@@ -584,7 +656,11 @@ export const getTimeRangeData = async (
       attributes
     );
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting time range data for ${batteryId}:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting time range data for ${batteryId}:`,
+      error
+    );
     throw error;
   }
 };
@@ -605,7 +681,7 @@ export const getPackControllerDataWithPagination = async (
     log(LOG_LEVELS.INFO, `Getting paginated PackController data`, {
       startTime: new Date(startTime * 1000).toISOString(),
       endTime: new Date(endTime * 1000).toISOString(),
-      duration: `${(endTime - startTime) / 60} minutes`
+      duration: `${(endTime - startTime) / 60} minutes`,
     });
 
     let allItems = [];
@@ -615,7 +691,7 @@ export const getPackControllerDataWithPagination = async (
 
     do {
       pageCount++;
-      
+
       const params = {
         TableName: PACK_CONTROLLER_TABLE_NAME,
         KeyConditionExpression: "TagID = :tid AND #ts BETWEEN :start AND :end",
@@ -657,20 +733,31 @@ export const getPackControllerDataWithPagination = async (
         }
       }
 
-      log(LOG_LEVELS.DEBUG, `Fetching PackController page ${pageCount} with params:`, { 
-        hasLastKey: !!lastEvaluatedKey,
-        limit: params.Limit,
-        tagId: params.ExpressionAttributeValues[":tid"],
-        startTime: new Date(params.ExpressionAttributeValues[":start"] * 1000).toISOString(),
-        endTime: new Date(params.ExpressionAttributeValues[":end"] * 1000).toISOString()
-      });
+      log(
+        LOG_LEVELS.DEBUG,
+        `Fetching PackController page ${pageCount} with params:`,
+        {
+          hasLastKey: !!lastEvaluatedKey,
+          limit: params.Limit,
+          tagId: params.ExpressionAttributeValues[":tid"],
+          startTime: new Date(
+            params.ExpressionAttributeValues[":start"] * 1000
+          ).toISOString(),
+          endTime: new Date(
+            params.ExpressionAttributeValues[":end"] * 1000
+          ).toISOString(),
+        }
+      );
 
       const result = await docClient.query(params).promise();
-      
+
       allItems = allItems.concat(result.Items);
       lastEvaluatedKey = result.LastEvaluatedKey;
 
-      log(LOG_LEVELS.INFO, `PackController Page ${pageCount}: fetched ${result.Items.length} items, total: ${allItems.length}`);
+      log(
+        LOG_LEVELS.INFO,
+        `PackController Page ${pageCount}: fetched ${result.Items.length} items, total: ${allItems.length}`
+      );
 
       // Call progress callback with partial data for PROGRESSIVE PLOTTING
       if (progressCallback && allItems.length > 0) {
@@ -679,17 +766,23 @@ export const getPackControllerDataWithPagination = async (
           current: pageCount,
           total: Math.max(pageCount + (lastEvaluatedKey ? 5 : 0), pageCount),
           message: `Fetched ${allItems.length} PackController records (Page ${pageCount}) - Progressive plotting...`,
-          partialData: partialData
+          partialData: partialData,
         });
       }
-
     } while (lastEvaluatedKey && pageCount < maxPages);
 
-    log(LOG_LEVELS.INFO, `Completed PackController pagination: ${allItems.length} total items in ${pageCount} pages`);
+    log(
+      LOG_LEVELS.INFO,
+      `Completed PackController pagination: ${allItems.length} total items in ${pageCount} pages`
+    );
 
     return allItems.map(convertDynamoDBFormat);
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting paginated PackController data:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting paginated PackController data:`,
+      error
+    );
     throw error;
   }
 };
@@ -713,7 +806,11 @@ export const getPackControllerTimeRangeData = async (
       attributes
     );
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting PackController time range data:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting PackController time range data:`,
+      error
+    );
     throw error;
   }
 };
@@ -721,10 +818,17 @@ export const getPackControllerTimeRangeData = async (
 /**
  * Fetch PackController history data
  */
-const fetchPackControllerHistoryData = async (selectedTagId, selectedTimeRange, progressCallback) => {
+const fetchPackControllerHistoryData = async (
+  selectedTagId,
+  selectedTimeRange,
+  progressCallback
+) => {
   try {
-    log(LOG_LEVELS.INFO, `Starting fetchPackControllerHistoryData for TagId: ${selectedTagId}, TimeRange: ${selectedTimeRange}`);
-    
+    log(
+      LOG_LEVELS.INFO,
+      `Starting fetchPackControllerHistoryData for TagId: ${selectedTagId}, TimeRange: ${selectedTimeRange}`
+    );
+
     const session = await fetchAuthSession();
     const credentials = session.credentials;
 
@@ -740,9 +844,13 @@ const fetchPackControllerHistoryData = async (selectedTagId, selectedTimeRange, 
 
     // Map UI selection to database TagID
     // If user selected "0700", map it to "PACK-CONTROLLER" for database query
-    const databaseTagId = (selectedTagId === "0700") ? "PACK-CONTROLLER" : selectedTagId;
-    
-    log(LOG_LEVELS.INFO, `Mapped selectedTagId "${selectedTagId}" to databaseTagId "${databaseTagId}"`);
+    const databaseTagId =
+      selectedTagId === "0700" ? "PACK-CONTROLLER" : selectedTagId;
+
+    log(
+      LOG_LEVELS.INFO,
+      `Mapped selectedTagId "${selectedTagId}" to databaseTagId "${databaseTagId}"`
+    );
 
     // Update progress
     if (progressCallback) {
@@ -750,7 +858,7 @@ const fetchPackControllerHistoryData = async (selectedTagId, selectedTimeRange, 
         current: 0,
         total: 100,
         message: `Initializing PackController query for ${databaseTagId}...`,
-        partialData: null
+        partialData: null,
       });
     }
 
@@ -847,13 +955,19 @@ const fetchPackControllerHistoryData = async (selectedTagId, selectedTimeRange, 
         );
     }
 
-    log(LOG_LEVELS.INFO, `Fetched ${fetchedData.length} PackController items for ${databaseTagId}`);
+    log(
+      LOG_LEVELS.INFO,
+      `Fetched ${fetchedData.length} PackController items for ${databaseTagId}`
+    );
 
     if (!fetchedData || fetchedData.length === 0) {
-      log(LOG_LEVELS.WARN, `No PackController data found for ${databaseTagId} in time range ${selectedTimeRange}`);
-      
+      log(
+        LOG_LEVELS.WARN,
+        `No PackController data found for ${databaseTagId} in time range ${selectedTimeRange}`
+      );
+
       const emptyStructure = {
-        type: 'PACK_CONTROLLER',
+        type: "PACK_CONTROLLER",
         error: `No PackController data found for ${selectedTagId} in the last ${selectedTimeRange}. Check console for debug info.`,
         selectedTagId,
         databaseTagId,
@@ -863,15 +977,15 @@ const fetchPackControllerHistoryData = async (selectedTagId, selectedTimeRange, 
           totalVoltage: { values: [], timestamps: [] },
           socPercent: { values: [], timestamps: [] },
           sohPercent: { values: [], timestamps: [] },
-          carbonOffset: { values: [], timestamps: [] }
+          carbonOffset: { values: [], timestamps: [] },
         },
         Latest: {
           systemTemp: 0,
           totalVoltage: 0,
           socPercent: 0,
           sohPercent: 0,
-          carbonOffset: 0
-        }
+          carbonOffset: 0,
+        },
       };
 
       if (progressCallback) {
@@ -879,7 +993,7 @@ const fetchPackControllerHistoryData = async (selectedTagId, selectedTimeRange, 
           current: 100,
           total: 100,
           message: "No PackController data found",
-          partialData: emptyStructure
+          partialData: emptyStructure,
         });
       }
 
@@ -892,40 +1006,44 @@ const fetchPackControllerHistoryData = async (selectedTagId, selectedTimeRange, 
         current: 90,
         total: 100,
         message: "Final PackController processing - optimizing for display...",
-        partialData: null
+        partialData: null,
       });
     }
 
     const structuredData = processPackControllerData(fetchedData, false);
 
-    log(LOG_LEVELS.INFO, `Successfully processed PackController data for ${databaseTagId}`, {
-      totalItems: fetchedData.length,
-      systemTempPoints: structuredData.System.systemTemp.values.length,
-      totalVoltagePoints: structuredData.System.totalVoltage.values.length,
-    });
+    log(
+      LOG_LEVELS.INFO,
+      `Successfully processed PackController data for ${databaseTagId}`,
+      {
+        totalItems: fetchedData.length,
+        systemTempPoints: structuredData.System.systemTemp.values.length,
+        totalVoltagePoints: structuredData.System.totalVoltage.values.length,
+      }
+    );
 
     if (progressCallback) {
       progressCallback({
         current: 100,
         total: 100,
         message: "PackController Complete!",
-        partialData: structuredData
+        partialData: structuredData,
       });
     }
 
     return structuredData;
   } catch (error) {
     log(LOG_LEVELS.ERROR, "Error in fetchPackControllerHistoryData:", error);
-    
+
     if (progressCallback) {
       progressCallback({
         current: 0,
         total: 100,
         message: `PackController Error: ${error.message}`,
-        partialData: null
+        partialData: null,
       });
     }
-    
+
     throw error;
   }
 };
@@ -933,18 +1051,32 @@ const fetchPackControllerHistoryData = async (selectedTagId, selectedTimeRange, 
 /**
  * Main data fetching function - consolidated with proper data processing
  */
-export const fetchData = async (selectedTagId, selectedTimeRange, progressCallback = null) => {
+export const fetchData = async (
+  selectedTagId,
+  selectedTimeRange,
+  progressCallback = null
+) => {
   try {
-    log(LOG_LEVELS.INFO, `Starting fetchData for TagId: ${selectedTagId}, TimeRange: ${selectedTimeRange}`);
-    
+    log(
+      LOG_LEVELS.INFO,
+      `Starting fetchData for TagId: ${selectedTagId}, TimeRange: ${selectedTimeRange}`
+    );
+
     // Detect battery type
     const batteryType = detectBatteryType(selectedTagId);
-    log(LOG_LEVELS.INFO, `Detected battery type: ${batteryType} for TagId: ${selectedTagId}`);
-    
-    if (batteryType === 'PACK_CONTROLLER') {
-      return await fetchPackControllerHistoryData(selectedTagId, selectedTimeRange, progressCallback);
+    log(
+      LOG_LEVELS.INFO,
+      `Detected battery type: ${batteryType} for TagId: ${selectedTagId}`
+    );
+
+    if (batteryType === "PACK_CONTROLLER") {
+      return await fetchPackControllerHistoryData(
+        selectedTagId,
+        selectedTimeRange,
+        progressCallback
+      );
     }
-    
+
     // Existing BMS logic
     const session = await fetchAuthSession();
     const credentials = session.credentials;
@@ -961,8 +1093,11 @@ export const fetchData = async (selectedTagId, selectedTimeRange, progressCallba
 
     // Construct the full battery ID with BAT- prefix to match DynamoDB TagID format
     const batteryId = `BAT-${selectedTagId}`;
-    
-    log(LOG_LEVELS.INFO, `Constructed batteryId: ${batteryId} from selectedTagId: ${selectedTagId}`);
+
+    log(
+      LOG_LEVELS.INFO,
+      `Constructed batteryId: ${batteryId} from selectedTagId: ${selectedTagId}`
+    );
     let fetchedData = [];
 
     // Update progress
@@ -971,14 +1106,19 @@ export const fetchData = async (selectedTagId, selectedTimeRange, progressCallba
         current: 0,
         total: 100,
         message: `Initializing query for ${batteryId}...`,
-        partialData: null
+        partialData: null,
       });
     }
 
     // Use the optimized queries based on time range
     switch (selectedTimeRange) {
       case "1min":
-        fetchedData = await getLastMinuteData(docClient, batteryId, null, progressCallback);
+        fetchedData = await getLastMinuteData(
+          docClient,
+          batteryId,
+          null,
+          progressCallback
+        );
         break;
       case "5min":
         const fiveMinAgo = Math.floor(Date.now() / 1000) - 300;
@@ -1017,7 +1157,12 @@ export const fetchData = async (selectedTagId, selectedTimeRange, progressCallba
         );
         break;
       case "1day":
-        fetchedData = await getLastDayData(docClient, batteryId, null, progressCallback);
+        fetchedData = await getLastDayData(
+          docClient,
+          batteryId,
+          null,
+          progressCallback
+        );
         break;
       case "7days":
         const sevenDaysAgo = Math.floor(Date.now() / 1000) - 604800;
@@ -1056,40 +1201,64 @@ export const fetchData = async (selectedTagId, selectedTimeRange, progressCallba
         );
     }
 
-    log(LOG_LEVELS.INFO, `Fetched ${fetchedData.length} items for ${batteryId}`);
+    log(
+      LOG_LEVELS.INFO,
+      `Fetched ${fetchedData.length} items for ${batteryId}`
+    );
 
     if (!fetchedData || fetchedData.length === 0) {
-      log(LOG_LEVELS.WARN, `No data found for ${batteryId} in time range ${selectedTimeRange}`, {
-        batteryId: batteryId,
-        selectedTagId: selectedTagId,
-        timeRange: selectedTimeRange,
-        queryType: "Primary Key Query"
-      });
-      
+      log(
+        LOG_LEVELS.WARN,
+        `No data found for ${batteryId} in time range ${selectedTimeRange}`,
+        {
+          batteryId: batteryId,
+          selectedTagId: selectedTagId,
+          timeRange: selectedTimeRange,
+          queryType: "Primary Key Query",
+        }
+      );
+
       // Try to get the latest reading to verify if the battery exists at all
       try {
-        log(LOG_LEVELS.INFO, `Attempting to get latest reading for ${batteryId} to verify battery exists...`);
+        log(
+          LOG_LEVELS.INFO,
+          `Attempting to get latest reading for ${batteryId} to verify battery exists...`
+        );
         const latestReading = await getLatestReading(docClient, batteryId);
         if (latestReading) {
-          log(LOG_LEVELS.INFO, `Battery ${batteryId} exists with latest timestamp: ${latestReading.Timestamp}`, {
-            latestTimestamp: new Date(parseInt(latestReading.Timestamp?.N || latestReading.Timestamp) * 1000).toISOString()
-          });
+          log(
+            LOG_LEVELS.INFO,
+            `Battery ${batteryId} exists with latest timestamp: ${latestReading.Timestamp}`,
+            {
+              latestTimestamp: new Date(
+                parseInt(
+                  latestReading.Timestamp?.N || latestReading.Timestamp
+                ) * 1000
+              ).toISOString(),
+            }
+          );
         } else {
-          log(LOG_LEVELS.WARN, `Battery ${batteryId} does not exist in database at all`);
+          log(
+            LOG_LEVELS.WARN,
+            `Battery ${batteryId} does not exist in database at all`
+          );
         }
       } catch (latestError) {
-        log(LOG_LEVELS.ERROR, `Error checking if battery exists: ${latestError.message}`);
+        log(
+          LOG_LEVELS.ERROR,
+          `Error checking if battery exists: ${latestError.message}`
+        );
       }
-      
+
       const emptyStructure = {
-        type: 'BMS',
+        type: "BMS",
         error: `No data found for battery ${selectedTagId} in the last ${selectedTimeRange}. Check console for debug info.`,
         batteryId,
         timeRange: selectedTimeRange,
         debug: {
           originalTagId: selectedTagId,
           constructedBatteryId: batteryId,
-          queryType: "DynamoDB Primary Key Query"
+          queryType: "DynamoDB Primary Key Query",
         },
         Node0: {
           voltage: { cellVoltages: Array.from({ length: 14 }, () => []) },
@@ -1100,8 +1269,20 @@ export const fetchData = async (selectedTagId, selectedTimeRange, progressCallba
           temperature: {},
         },
         Pack: { totalBattVoltage: 0, totalLoadVoltage: 0, totalCurrent: 0 },
-        Cell: { maxCellVoltage: 0, minCellVoltage: 0, thresholdOverVoltage: 0, thresholdUnderVoltage: 0 },
-        Temperature: { maxCellTemp: 0, minCellTemp: 0, thresholdOverTemp: 0, thresholdUnderTemp: 0, maxCellTempNode: 0, minCellTempNode: 0 },
+        Cell: {
+          maxCellVoltage: 0,
+          minCellVoltage: 0,
+          thresholdOverVoltage: 0,
+          thresholdUnderVoltage: 0,
+        },
+        Temperature: {
+          maxCellTemp: 0,
+          minCellTemp: 0,
+          thresholdOverTemp: 0,
+          thresholdUnderTemp: 0,
+          maxCellTempNode: 0,
+          minCellTempNode: 0,
+        },
         SOC: { socPercent: 0, balanceSOCPercent: 0 },
       };
 
@@ -1110,7 +1291,7 @@ export const fetchData = async (selectedTagId, selectedTimeRange, progressCallba
           current: 100,
           total: 100,
           message: "No data found",
-          partialData: emptyStructure
+          partialData: emptyStructure,
         });
       }
 
@@ -1123,7 +1304,7 @@ export const fetchData = async (selectedTagId, selectedTimeRange, progressCallba
         current: 90,
         total: 100,
         message: "Final processing - optimizing for display...",
-        partialData: null
+        partialData: null,
       });
     }
 
@@ -1131,8 +1312,12 @@ export const fetchData = async (selectedTagId, selectedTimeRange, progressCallba
 
     log(LOG_LEVELS.INFO, `Successfully processed data for ${batteryId}`, {
       totalItems: fetchedData.length,
-      node0Cells: structuredData.Node0.voltage.cellVoltages.filter(arr => arr.length > 0).length,
-      node1Cells: structuredData.Node1.voltage.cellVoltages.filter(arr => arr.length > 0).length,
+      node0Cells: structuredData.Node0.voltage.cellVoltages.filter(
+        (arr) => arr.length > 0
+      ).length,
+      node1Cells: structuredData.Node1.voltage.cellVoltages.filter(
+        (arr) => arr.length > 0
+      ).length,
     });
 
     if (progressCallback) {
@@ -1140,23 +1325,23 @@ export const fetchData = async (selectedTagId, selectedTimeRange, progressCallba
         current: 100,
         total: 100,
         message: "Complete!",
-        partialData: structuredData
+        partialData: structuredData,
       });
     }
 
     return structuredData;
   } catch (error) {
     log(LOG_LEVELS.ERROR, "Error in fetchData:", error);
-    
+
     if (progressCallback) {
       progressCallback({
         current: 0,
         total: 100,
         message: `Error: ${error.message}`,
-        partialData: null
+        partialData: null,
       });
     }
-    
+
     throw error;
   }
 };
@@ -1166,10 +1351,16 @@ export const fetchData = async (selectedTagId, selectedTimeRange, progressCallba
 /**
  * Get the latest PackController reading
  */
-export const getLatestPackControllerReading = async (docClient, deviceId = "PACK-CONTROLLER") => {
+export const getLatestPackControllerReading = async (
+  docClient,
+  deviceId = "PACK-CONTROLLER"
+) => {
   try {
-    log(LOG_LEVELS.INFO, `Getting latest PackController reading for device: ${deviceId}`);
-    
+    log(
+      LOG_LEVELS.INFO,
+      `Getting latest PackController reading for device: ${deviceId}`
+    );
+
     const params = {
       TableName: PACK_CONTROLLER_TABLE_NAME,
       KeyConditionExpression: "TagID = :tid",
@@ -1188,7 +1379,11 @@ export const getLatestPackControllerReading = async (docClient, deviceId = "PACK
 
     return null;
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting latest PackController reading for ${deviceId}:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting latest PackController reading for ${deviceId}:`,
+      error
+    );
     throw error;
   }
 };
@@ -1222,7 +1417,11 @@ export const getLastDayPackControllerData = async (
     if (attributes && attributes.length > 0) {
       const attrNames = {};
       attributes.forEach((attr, index) => {
-        if (attr !== "TagID" && attr !== "Timestamp" && attr !== "TagID_TimeWindow_DAY") {
+        if (
+          attr !== "TagID" &&
+          attr !== "Timestamp" &&
+          attr !== "TagID_TimeWindow_DAY"
+        ) {
           attrNames[`#attr${index}`] = attr;
         }
       });
@@ -1245,7 +1444,11 @@ export const getLastDayPackControllerData = async (
     const result = await docClient.query(params).promise();
     return result.Items.map(convertDynamoDBFormat);
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting last day PackController data for ${deviceId}:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting last day PackController data for ${deviceId}:`,
+      error
+    );
     throw error;
   }
 };
@@ -1266,7 +1469,8 @@ export const getLastWeekPackControllerData = async (
     const params = {
       TableName: PACK_CONTROLLER_TABLE_NAME,
       IndexName: "MonthIndex",
-      KeyConditionExpression: "TagID_TimeWindow_MONTH = :monthKey AND #ts > :time",
+      KeyConditionExpression:
+        "TagID_TimeWindow_MONTH = :monthKey AND #ts > :time",
       ExpressionAttributeNames: {
         "#ts": "Timestamp",
       },
@@ -1279,7 +1483,11 @@ export const getLastWeekPackControllerData = async (
     if (attributes && attributes.length > 0) {
       const attrNames = {};
       attributes.forEach((attr, index) => {
-        if (attr !== "TagID" && attr !== "Timestamp" && attr !== "TagID_TimeWindow_MONTH") {
+        if (
+          attr !== "TagID" &&
+          attr !== "Timestamp" &&
+          attr !== "TagID_TimeWindow_MONTH"
+        ) {
           attrNames[`#attr${index}`] = attr;
         }
       });
@@ -1302,7 +1510,11 @@ export const getLastWeekPackControllerData = async (
     const result = await docClient.query(params).promise();
     return result.Items.map(convertDynamoDBFormat);
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting last week PackController data for ${deviceId}:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting last week PackController data for ${deviceId}:`,
+      error
+    );
     throw error;
   }
 };
@@ -1323,7 +1535,8 @@ export const getLastMonthPackControllerData = async (
     const params = {
       TableName: PACK_CONTROLLER_TABLE_NAME,
       IndexName: "MonthIndex",
-      KeyConditionExpression: "TagID_TimeWindow_MONTH = :monthKey AND #ts > :time",
+      KeyConditionExpression:
+        "TagID_TimeWindow_MONTH = :monthKey AND #ts > :time",
       ExpressionAttributeNames: {
         "#ts": "Timestamp",
       },
@@ -1336,7 +1549,11 @@ export const getLastMonthPackControllerData = async (
     if (attributes && attributes.length > 0) {
       const attrNames = {};
       attributes.forEach((attr, index) => {
-        if (attr !== "TagID" && attr !== "Timestamp" && attr !== "TagID_TimeWindow_MONTH") {
+        if (
+          attr !== "TagID" &&
+          attr !== "Timestamp" &&
+          attr !== "TagID_TimeWindow_MONTH"
+        ) {
           attrNames[`#attr${index}`] = attr;
         }
       });
@@ -1359,7 +1576,11 @@ export const getLastMonthPackControllerData = async (
     const result = await docClient.query(params).promise();
     return result.Items.map(convertDynamoDBFormat);
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting last month PackController data for ${deviceId}:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting last month PackController data for ${deviceId}:`,
+      error
+    );
     throw error;
   }
 };
@@ -1373,8 +1594,11 @@ export const getPackControllerAlarmHistory = async (
   timeRange = "1day"
 ) => {
   try {
-    log(LOG_LEVELS.INFO, `Getting PackController alarm history for device: ${deviceId}, timeRange: ${timeRange}`);
-    
+    log(
+      LOG_LEVELS.INFO,
+      `Getting PackController alarm history for device: ${deviceId}, timeRange: ${timeRange}`
+    );
+
     let getData;
     switch (timeRange) {
       case "1day":
@@ -1392,30 +1616,57 @@ export const getPackControllerAlarmHistory = async (
 
     // Get alarm-related attributes
     const alarmAttributes = [
-      "VictronAlarmContactor", "VictronAlarmShortCircuit", "VictronAlarmCellHighTempCharge",
-      "VictronAlarmHighCurrent", "VictronAlarmCellLowTemp", "VictronAlarmBmsInternal",
-      "VictronAlarmCellHighTemp", "VictronAlarmCellHighVoltage", "VictronAlarmCellLowVoltage",
-      "VictronAlarmCellImbalance", "VictronAlarmChargeHighCurrent", "VictronAlarmGeneral",
-      "VictronAlarmCellLowTempCharge", "VictronWarningCellLowTemp", "VictronWarningContactor",
-      "VictronWarningGeneral", "VictronWarningCellHighTemp", "VictronWarningSystemStatus",
-      "VictronWarningChargeHighCurrent", "VictronWarningHighCurrent", "VictronWarningCellLowVoltage",
-      "VictronWarningBmsInternal", "VictronWarningCellChargeLowTemp", "VictronWarningShortCircuit",
-      "VictronWarningCellHighVoltage", "VictronWarningCellImbalance", "VictronWarningCellChargeHighTemp",
-      "ProtectionChargeOverCurrent", "ProtectionDischargeOverCurrent", "ProtectionSystemError",
-      "ProtectionCellUnderVoltage", "ProtectionCellOverVoltage", "ProtectionCellUnderTemperature",
-      "ProtectionCellOverTemperature", "AlarmCellLowVoltage", "AlarmCellHighVoltage",
-      "AlarmCellLowTemperature", "AlarmInternalCommunicationFail", "AlarmDischargeHighCurrent",
-      "AlarmChargeHighCurrent", "AlarmCellHighTemperature"
+      "VictronAlarmContactor",
+      "VictronAlarmShortCircuit",
+      "VictronAlarmCellHighTempCharge",
+      "VictronAlarmHighCurrent",
+      "VictronAlarmCellLowTemp",
+      "VictronAlarmBmsInternal",
+      "VictronAlarmCellHighTemp",
+      "VictronAlarmCellHighVoltage",
+      "VictronAlarmCellLowVoltage",
+      "VictronAlarmCellImbalance",
+      "VictronAlarmChargeHighCurrent",
+      "VictronAlarmGeneral",
+      "VictronAlarmCellLowTempCharge",
+      "VictronWarningCellLowTemp",
+      "VictronWarningContactor",
+      "VictronWarningGeneral",
+      "VictronWarningCellHighTemp",
+      "VictronWarningSystemStatus",
+      "VictronWarningChargeHighCurrent",
+      "VictronWarningHighCurrent",
+      "VictronWarningCellLowVoltage",
+      "VictronWarningBmsInternal",
+      "VictronWarningCellChargeLowTemp",
+      "VictronWarningShortCircuit",
+      "VictronWarningCellHighVoltage",
+      "VictronWarningCellImbalance",
+      "VictronWarningCellChargeHighTemp",
+      "ProtectionChargeOverCurrent",
+      "ProtectionDischargeOverCurrent",
+      "ProtectionSystemError",
+      "ProtectionCellUnderVoltage",
+      "ProtectionCellOverVoltage",
+      "ProtectionCellUnderTemperature",
+      "ProtectionCellOverTemperature",
+      "AlarmCellLowVoltage",
+      "AlarmCellHighVoltage",
+      "AlarmCellLowTemperature",
+      "AlarmInternalCommunicationFail",
+      "AlarmDischargeHighCurrent",
+      "AlarmChargeHighCurrent",
+      "AlarmCellHighTemperature",
     ];
 
     const data = await getData(docClient, deviceId, alarmAttributes);
-    
+
     // Process alarm data
     const alarmHistory = [];
-    data.forEach(item => {
+    data.forEach((item) => {
       const timestamp = parseInt(item.Timestamp?.N || item.Timestamp) * 1000;
-      
-      alarmAttributes.forEach(alarmKey => {
+
+      alarmAttributes.forEach((alarmKey) => {
         const value = parseInt(item[alarmKey]?.N || item[alarmKey] || 0);
         if (value > 0) {
           alarmHistory.push({
@@ -1423,7 +1674,7 @@ export const getPackControllerAlarmHistory = async (
             alarmType: alarmKey,
             value,
             severity: getSeverityLevel(alarmKey),
-            description: getAlarmDescription(alarmKey)
+            description: getAlarmDescription(alarmKey),
           });
         }
       });
@@ -1434,7 +1685,11 @@ export const getPackControllerAlarmHistory = async (
 
     return alarmHistory;
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error getting PackController alarm history for ${deviceId}:`, error);
+    log(
+      LOG_LEVELS.ERROR,
+      `Error getting PackController alarm history for ${deviceId}:`,
+      error
+    );
     throw error;
   }
 };
@@ -1498,10 +1753,10 @@ const getAlarmDescription = (alarmKey) => {
     AlarmInternalCommunicationFail: "Internal communication failure",
     AlarmDischargeHighCurrent: "Discharge high current alarm",
     AlarmChargeHighCurrent: "Charge high current alarm",
-    AlarmCellHighTemperature: "Cell high temperature alarm"
+    AlarmCellHighTemperature: "Cell high temperature alarm",
   };
-  
-  return descriptions[alarmKey] || alarmKey.replace(/([A-Z])/g, ' $1').trim();
+
+  return descriptions[alarmKey] || alarmKey.replace(/([A-Z])/g, " $1").trim();
 };
 
 // Debug function to test battery connectivity
@@ -1521,65 +1776,88 @@ export const testBatteryConnection = async (selectedTagId) => {
     });
 
     const batteryType = detectBatteryType(selectedTagId);
-    
+
     console.log("=== BATTERY CONNECTION TEST ===");
     console.log("Selected Tag ID:", selectedTagId);
     console.log("Detected Battery Type:", batteryType);
-    
-    if (batteryType === 'PACK_CONTROLLER') {
+
+    if (batteryType === "PACK_CONTROLLER") {
       console.log("Testing PackController connection...");
       console.log("Mapping selectedTagId to database TagID...");
-      
-      const databaseTagId = (selectedTagId === "0700") ? "PACK-CONTROLLER" : selectedTagId;
+
+      const databaseTagId =
+        selectedTagId === "0700" ? "PACK-CONTROLLER" : selectedTagId;
       console.log("Database TagID:", databaseTagId);
-      
+
       try {
-        const latestReading = await getLatestPackControllerReading(docClient, databaseTagId);
+        const latestReading = await getLatestPackControllerReading(
+          docClient,
+          databaseTagId
+        );
         if (latestReading) {
           console.log("✅ PackController latest reading found:", {
-            timestamp: new Date(parseInt(latestReading.Timestamp?.N || latestReading.Timestamp) * 1000).toISOString(),
+            timestamp: new Date(
+              parseInt(latestReading.Timestamp?.N || latestReading.Timestamp) *
+                1000
+            ).toISOString(),
             hasData: true,
             sampleData: {
               SystemTemp: latestReading.SystemTemp,
               TotalVoltage: latestReading.TotalVoltage,
-              SOCPercent: latestReading.SOCPercent
-            }
+              SOCPercent: latestReading.SOCPercent,
+            },
           });
         } else {
           console.log("❌ No PackController latest reading found");
         }
       } catch (error) {
-        console.log("❌ Error getting PackController latest reading:", error.message);
+        console.log(
+          "❌ Error getting PackController latest reading:",
+          error.message
+        );
       }
-      
+
       // Test recent data
       try {
         const fiveMinAgo = Math.floor(Date.now() / 1000) - 300;
         const now = Math.floor(Date.now() / 1000);
-        const recentData = await getPackControllerTimeRangeData(docClient, fiveMinAgo, now);
-        console.log("📊 Recent PackController data (last 5 min):", recentData.length, "records");
+        const recentData = await getPackControllerTimeRangeData(
+          docClient,
+          fiveMinAgo,
+          now
+        );
+        console.log(
+          "📊 Recent PackController data (last 5 min):",
+          recentData.length,
+          "records"
+        );
         if (recentData.length > 0) {
           console.log("Sample recent record:", {
             Timestamp: recentData[0].Timestamp,
             SystemTemp: recentData[0].SystemTemp,
-            TotalVoltage: recentData[0].TotalVoltage
+            TotalVoltage: recentData[0].TotalVoltage,
           });
         }
       } catch (error) {
-        console.log("❌ Error getting recent PackController data:", error.message);
+        console.log(
+          "❌ Error getting recent PackController data:",
+          error.message
+        );
       }
-      
     } else {
       const batteryId = `BAT-${selectedTagId}`;
       console.log("Constructed Battery ID:", batteryId);
-      
+
       // Test 1: Get latest reading
       try {
         const latestReading = await getLatestReading(docClient, batteryId);
         if (latestReading) {
           console.log("✅ Latest reading found:", {
-            timestamp: new Date(parseInt(latestReading.Timestamp?.N || latestReading.Timestamp) * 1000).toISOString(),
-            hasData: true
+            timestamp: new Date(
+              parseInt(latestReading.Timestamp?.N || latestReading.Timestamp) *
+                1000
+            ).toISOString(),
+            hasData: true,
           });
         } else {
           console.log("❌ No latest reading found");
@@ -1588,9 +1866,8 @@ export const testBatteryConnection = async (selectedTagId) => {
         console.log("❌ Error getting latest reading:", error.message);
       }
     }
-    
+
     console.log("=== END BATTERY TEST ===");
-    
   } catch (error) {
     console.error("❌ Battery connection test failed:", error);
   }
@@ -1599,8 +1876,11 @@ export const testBatteryConnection = async (selectedTagId) => {
 // Battery anomalies functions
 export const getBatteryAnomalies = async (docClient, batteryId, limit = 50) => {
   try {
-    log(LOG_LEVELS.INFO, `Getting battery anomalies for: ${batteryId}, limit: ${limit}`);
-    
+    log(
+      LOG_LEVELS.INFO,
+      `Getting battery anomalies for: ${batteryId}, limit: ${limit}`
+    );
+
     const queryParams = {
       TableName: "BatteryAnomalies_EC2",
       IndexName: "tag_id-timestamp-index",
@@ -1624,7 +1904,10 @@ export const getBatteryAnomalies = async (docClient, batteryId, limit = 50) => {
     let result;
     try {
       result = await docClient.query(queryParams).promise();
-      log(LOG_LEVELS.DEBUG, `Anomalies query returned ${result.Items.length} items`);
+      log(
+        LOG_LEVELS.DEBUG,
+        `Anomalies query returned ${result.Items.length} items`
+      );
     } catch (queryError) {
       log(LOG_LEVELS.WARN, `Query failed, falling back to scan`, queryError);
       result = await docClient.scan(scanParams).promise();
@@ -1667,15 +1950,18 @@ export const getBatteryAnomalies = async (docClient, batteryId, limit = 50) => {
 export const getAllBatteryAnomalies = async (docClient, limit = 50) => {
   try {
     log(LOG_LEVELS.INFO, `Getting all battery anomalies, limit: ${limit}`);
-    
+
     const scanParams = {
       TableName: "BatteryAnomalies_EC2",
       Limit: limit,
     };
 
     const result = await docClient.scan(scanParams).promise();
-    
-    log(LOG_LEVELS.DEBUG, `All anomalies scan returned ${result.Items.length} items`);
+
+    log(
+      LOG_LEVELS.DEBUG,
+      `All anomalies scan returned ${result.Items.length} items`
+    );
 
     const formattedAnomalies = result.Items.map((item) => ({
       id: item.id,
@@ -1715,7 +2001,7 @@ export const getAllBatteryAnomalies = async (docClient, limit = 50) => {
 export const getAvailableBatteryIds = async (docClient) => {
   try {
     log(LOG_LEVELS.INFO, `Getting available battery IDs`);
-    
+
     const params = {
       TableName: "BatteryAnomalies_EC2",
       ProjectionExpression: "tag_id",
@@ -1723,7 +2009,7 @@ export const getAvailableBatteryIds = async (docClient) => {
 
     const result = await docClient.scan(params).promise();
     const uniqueIds = [...new Set(result.Items.map((item) => item.tag_id))];
-    
+
     log(LOG_LEVELS.DEBUG, `Found ${uniqueIds.length} unique battery IDs`);
 
     return {
@@ -1770,12 +2056,7 @@ export const getDataByTimestamp = async (
   return getTimeRangeData(docClient, tagID, timestamp, timestamp);
 };
 
-
 //Newly UPDATED CHECKOUT AHMAD AHMED
-
-
-
-
 
 // Add these functions to your queries.js file
 
@@ -1785,7 +2066,7 @@ export const getDataByTimestamp = async (
 export const scanForAvailableBatteries = async (docClient, limit = 100) => {
   try {
     log(LOG_LEVELS.INFO, `Scanning for available batteries in DynamoDB tables`);
-    
+
     const availableBatteries = [];
     const scannedTagIDs = new Set();
 
@@ -1795,9 +2076,9 @@ export const scanForAvailableBatteries = async (docClient, limit = 100) => {
         TableName: BMS_TABLE_NAME,
         ProjectionExpression: "TagID, #ts",
         ExpressionAttributeNames: {
-          "#ts": "Timestamp"
+          "#ts": "Timestamp",
         },
-        Limit: limit
+        Limit: limit,
       };
 
       let lastEvaluatedKey = null;
@@ -1811,22 +2092,24 @@ export const scanForAvailableBatteries = async (docClient, limit = 100) => {
         }
 
         const result = await docClient.scan(bmsParams).promise();
-        
+
         // Process each item
-        result.Items.forEach(item => {
+        result.Items.forEach((item) => {
           const tagId = item.TagID;
-          const timestamp = parseInt(item.Timestamp?.N || item.Timestamp) * 1000;
-          
-          if (tagId && tagId.startsWith('BAT-') && !scannedTagIDs.has(tagId)) {
+          const timestamp =
+            parseInt(item.Timestamp?.N || item.Timestamp) * 1000;
+
+          if (tagId && tagId.startsWith("BAT-") && !scannedTagIDs.has(tagId)) {
             scannedTagIDs.add(tagId);
-            
+
             // Extract the battery ID (remove BAT- prefix)
-            const batteryId = tagId.replace('BAT-', '');
-            
+            const batteryId = tagId.replace("BAT-", "");
+
             // Check if this battery has recent data (within last 7 days)
-            const daysSinceLastSeen = (Date.now() - timestamp) / (1000 * 60 * 60 * 24);
+            const daysSinceLastSeen =
+              (Date.now() - timestamp) / (1000 * 60 * 60 * 24);
             const isActive = daysSinceLastSeen <= 7;
-            
+
             if (isActive) {
               availableBatteries.push({
                 id: batteryId,
@@ -1836,19 +2119,20 @@ export const scanForAvailableBatteries = async (docClient, limit = 100) => {
                 lastSeen: new Date(timestamp),
                 isActive: true,
                 fullBatteryId: tagId,
-                source: 'scan',
-                daysSinceLastSeen: Math.round(daysSinceLastSeen * 10) / 10
+                source: "scan",
+                daysSinceLastSeen: Math.round(daysSinceLastSeen * 10) / 10,
               });
             }
           }
         });
 
         lastEvaluatedKey = result.LastEvaluatedKey;
-        
       } while (lastEvaluatedKey && scanCount < maxScans);
 
-      log(LOG_LEVELS.INFO, `BMS table scan found ${availableBatteries.length} active batteries`);
-      
+      log(
+        LOG_LEVELS.INFO,
+        `BMS table scan found ${availableBatteries.length} active batteries`
+      );
     } catch (error) {
       log(LOG_LEVELS.WARN, `Error scanning BMS table:`, error);
     }
@@ -1859,24 +2143,25 @@ export const scanForAvailableBatteries = async (docClient, limit = 100) => {
         TableName: PACK_CONTROLLER_TABLE_NAME,
         ProjectionExpression: "TagID, #ts",
         ExpressionAttributeNames: {
-          "#ts": "Timestamp"
+          "#ts": "Timestamp",
         },
-        Limit: 50
+        Limit: 50,
       };
 
       const packResult = await docClient.scan(packParams).promise();
-      
-      packResult.Items.forEach(item => {
+
+      packResult.Items.forEach((item) => {
         const tagId = item.TagID;
         const timestamp = parseInt(item.Timestamp?.N || item.Timestamp) * 1000;
-        
-        if (tagId === 'PACK-CONTROLLER' && !scannedTagIDs.has(tagId)) {
+
+        if (tagId === "PACK-CONTROLLER" && !scannedTagIDs.has(tagId)) {
           scannedTagIDs.add(tagId);
-          
+
           // Check if this controller has recent data (within last 7 days)
-          const daysSinceLastSeen = (Date.now() - timestamp) / (1000 * 60 * 60 * 24);
+          const daysSinceLastSeen =
+            (Date.now() - timestamp) / (1000 * 60 * 60 * 24);
           const isActive = daysSinceLastSeen <= 7;
-          
+
           if (isActive) {
             availableBatteries.push({
               id: "0700",
@@ -1886,38 +2171,41 @@ export const scanForAvailableBatteries = async (docClient, limit = 100) => {
               lastSeen: new Date(timestamp),
               isActive: true,
               fullBatteryId: tagId,
-              source: 'scan',
-              daysSinceLastSeen: Math.round(daysSinceLastSeen * 10) / 10
+              source: "scan",
+              daysSinceLastSeen: Math.round(daysSinceLastSeen * 10) / 10,
             });
           }
         }
       });
 
       log(LOG_LEVELS.INFO, `PackController table scan complete`);
-      
     } catch (error) {
       log(LOG_LEVELS.WARN, `Error scanning PackController table:`, error);
     }
 
     // Sort by last seen date (most recent first)
-    availableBatteries.sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime());
+    availableBatteries.sort(
+      (a, b) => b.lastSeen.getTime() - a.lastSeen.getTime()
+    );
 
-    log(LOG_LEVELS.INFO, `Battery scan complete: found ${availableBatteries.length} total active batteries/controllers`);
-    
+    log(
+      LOG_LEVELS.INFO,
+      `Battery scan complete: found ${availableBatteries.length} total active batteries/controllers`
+    );
+
     return {
       success: true,
       data: availableBatteries,
       count: availableBatteries.length,
-      scannedTagIDs: Array.from(scannedTagIDs)
+      scannedTagIDs: Array.from(scannedTagIDs),
     };
-    
   } catch (error) {
     log(LOG_LEVELS.ERROR, `Error scanning for available batteries:`, error);
     return {
       success: false,
       error: error.message,
       data: [],
-      count: 0
+      count: 0,
     };
   }
 };
@@ -1927,48 +2215,67 @@ export const scanForAvailableBatteries = async (docClient, limit = 100) => {
  */
 export const checkBatteryAvailability = async (docClient, batteryIds) => {
   try {
-    log(LOG_LEVELS.INFO, `Checking availability for specific batteries:`, batteryIds);
-    
+    log(
+      LOG_LEVELS.INFO,
+      `Checking availability for specific batteries:`,
+      batteryIds
+    );
+
     const results = [];
-    
+
     for (const batteryId of batteryIds) {
       try {
         const batteryType = detectBatteryType(batteryId);
         let hasRecentData = false;
         let lastSeen = null;
-        
-        if (batteryType === 'PACK_CONTROLLER') {
+
+        if (batteryType === "PACK_CONTROLLER") {
           // Check PackController
-          const databaseTagId = (batteryId === "0700") ? "PACK-CONTROLLER" : batteryId;
-          const latestReading = await getLatestPackControllerReading(docClient, databaseTagId);
-          
+          const databaseTagId =
+            batteryId === "0700" ? "PACK-CONTROLLER" : batteryId;
+          const latestReading = await getLatestPackControllerReading(
+            docClient,
+            databaseTagId
+          );
+
           if (latestReading) {
-            const timestamp = parseInt(latestReading.Timestamp?.N || latestReading.Timestamp) * 1000;
+            const timestamp =
+              parseInt(latestReading.Timestamp?.N || latestReading.Timestamp) *
+              1000;
             lastSeen = new Date(timestamp);
-            const hoursSinceLastSeen = (Date.now() - timestamp) / (1000 * 60 * 60);
+            const hoursSinceLastSeen =
+              (Date.now() - timestamp) / (1000 * 60 * 60);
             hasRecentData = hoursSinceLastSeen <= 168; // Within last week
           }
         } else {
           // Check BMS battery
           const fullBatteryId = `BAT-${batteryId}`;
-          const latestReading = await getLatestReading(docClient, fullBatteryId);
-          
+          const latestReading = await getLatestReading(
+            docClient,
+            fullBatteryId
+          );
+
           if (latestReading) {
-            const timestamp = parseInt(latestReading.Timestamp?.N || latestReading.Timestamp) * 1000;
+            const timestamp =
+              parseInt(latestReading.Timestamp?.N || latestReading.Timestamp) *
+              1000;
             lastSeen = new Date(timestamp);
-            const hoursSinceLastSeen = (Date.now() - timestamp) / (1000 * 60 * 60);
+            const hoursSinceLastSeen =
+              (Date.now() - timestamp) / (1000 * 60 * 60);
             hasRecentData = hoursSinceLastSeen <= 168; // Within last week
           }
         }
-        
+
         results.push({
           id: batteryId,
           type: batteryType,
           isAvailable: hasRecentData,
           lastSeen: lastSeen,
-          displayName: batteryType === 'PACK_CONTROLLER' ? 'Pack Controller (0700)' : `Battery ${batteryId}`
+          displayName:
+            batteryType === "PACK_CONTROLLER"
+              ? "Pack Controller (0700)"
+              : `Battery ${batteryId}`,
         });
-        
       } catch (error) {
         log(LOG_LEVELS.WARN, `Error checking battery ${batteryId}:`, error);
         results.push({
@@ -1976,14 +2283,13 @@ export const checkBatteryAvailability = async (docClient, batteryIds) => {
           type: detectBatteryType(batteryId),
           isAvailable: false,
           lastSeen: null,
-          error: error.message
+          error: error.message,
         });
       }
     }
-    
+
     log(LOG_LEVELS.INFO, `Battery availability check complete:`, results);
     return results;
-    
   } catch (error) {
     log(LOG_LEVELS.ERROR, `Error in battery availability check:`, error);
     throw error;
@@ -1996,29 +2302,52 @@ export const checkBatteryAvailability = async (docClient, batteryIds) => {
 export const getComprehensiveBatteryList = async (docClient) => {
   try {
     log(LOG_LEVELS.INFO, `Getting comprehensive battery list`);
-    
+
     // Start with a scan to find batteries
     const scanResult = await scanForAvailableBatteries(docClient, 200);
     let allBatteries = scanResult.data || [];
-    
+
     // Also check common battery IDs that might not appear in the scan
     const commonBatteryIds = [
-      '0x400', '0x401', '0x402', '0x403', '0x404', '0x405',
-      '0x480', '0x481', '0x482', '0x483', '0x484', '0x485',
-      '0x440', '0x441', '0x442', '0x443', '0x444', '0x445',
-      '0x460', '0x461', '0x462', '0x463', '0x464', '0x465',
-      '0700' // Pack Controller
+      "0x400",
+      "0x401",
+      "0x402",
+      "0x403",
+      "0x404",
+      "0x405",
+      "0x480",
+      "0x481",
+      "0x482",
+      "0x483",
+      "0x484",
+      "0x485",
+      "0x440",
+      "0x441",
+      "0x442",
+      "0x443",
+      "0x444",
+      "0x445",
+      "0x460",
+      "0x461",
+      "0x462",
+      "0x463",
+      "0x464",
+      "0x465",
+      "0700", // Pack Controller
     ];
-    
+
     // Filter out IDs we already found in the scan
-    const foundIds = new Set(allBatteries.map(b => b.id));
-    const idsToCheck = commonBatteryIds.filter(id => !foundIds.has(id));
-    
+    const foundIds = new Set(allBatteries.map((b) => b.id));
+    const idsToCheck = commonBatteryIds.filter((id) => !foundIds.has(id));
+
     if (idsToCheck.length > 0) {
-      const availabilityResults = await checkBatteryAvailability(docClient, idsToCheck);
-      
+      const availabilityResults = await checkBatteryAvailability(
+        docClient,
+        idsToCheck
+      );
+
       // Add available batteries from the targeted check
-      availabilityResults.forEach(result => {
+      availabilityResults.forEach((result) => {
         if (result.isAvailable) {
           allBatteries.push({
             id: result.id,
@@ -2027,23 +2356,23 @@ export const getComprehensiveBatteryList = async (docClient) => {
             displayName: result.displayName,
             lastSeen: result.lastSeen,
             isActive: true,
-            source: 'targeted_check'
+            source: "targeted_check",
           });
         }
       });
     }
-    
+
     // Remove duplicates and sort by last seen
     const uniqueBatteries = [];
     const seenIds = new Set();
-    
-    allBatteries.forEach(battery => {
+
+    allBatteries.forEach((battery) => {
       if (!seenIds.has(battery.id)) {
         seenIds.add(battery.id);
         uniqueBatteries.push(battery);
       }
     });
-    
+
     // Sort by last seen date (most recent first)
     uniqueBatteries.sort((a, b) => {
       if (!a.lastSeen && !b.lastSeen) return 0;
@@ -2051,23 +2380,25 @@ export const getComprehensiveBatteryList = async (docClient) => {
       if (!b.lastSeen) return -1;
       return b.lastSeen.getTime() - a.lastSeen.getTime();
     });
-    
-    log(LOG_LEVELS.INFO, `Comprehensive battery list complete: ${uniqueBatteries.length} batteries found`);
-    
+
+    log(
+      LOG_LEVELS.INFO,
+      `Comprehensive battery list complete: ${uniqueBatteries.length} batteries found`
+    );
+
     return {
       success: true,
       data: uniqueBatteries,
       count: uniqueBatteries.length,
-      methods: ['scan', 'targeted_check']
+      methods: ["scan", "targeted_check"],
     };
-    
   } catch (error) {
     log(LOG_LEVELS.ERROR, `Error getting comprehensive battery list:`, error);
     return {
       success: false,
       error: error.message,
       data: [],
-      count: 0
+      count: 0,
     };
   }
 };
