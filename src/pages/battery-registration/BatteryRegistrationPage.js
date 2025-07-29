@@ -187,7 +187,7 @@ const BatteryRegistrationPage = () => {
             </h3>
             <ul style={{ color: "#2e7d32", margin: 0, paddingLeft: "20px" }}>
               <li>Battery serial number</li>
-              <li>Battery ID (e.g., 0x440)</li>
+              <li>Battery ID (Look on your Battery Label for this)</li>
               <li>Optional: A nickname for easy identification</li>
               <li>Optional: Physical location of the battery</li>
             </ul>
@@ -308,7 +308,7 @@ const BatteryRegistrationPage = () => {
               name="batteryId"
               value={formData.batteryId}
               onChange={handleInputChange}
-              placeholder="e.g., 0x440 or 440"
+              placeholder="Hardware ID from Battery Label"
               style={inputStyle}
               required
             />

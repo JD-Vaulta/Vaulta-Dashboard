@@ -17,7 +17,35 @@ const Gauges = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
 }, isMobile = false }) => {
   const [currentPage, setCurrentPage] = useState(0);
   const [history, setHistory] = useState({});
-  const [hoveredPoint, setHoveredPoint] = useState(null);
+
+  // Status and color calculation functions
+  const getTempStatus = (temp) => {
+    if (temp >= 50) return "Critical";
+    if (temp >= 40) return "Warning";
+    return "Normal";
+  };
+
+  const getVoltageStatus = (voltage) => {
+    if (voltage >= 3.65) return "High";
+    if (voltage >= 3.45) return "Elevated";
+    if (voltage <= 2.8) return "Low";
+    return "Optimal";
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "Critical":
+      case "High":
+      case "Low":
+        return colors.error;
+      case "Warning":
+      case "Elevated":
+      case "Fair":
+        return colors.warning;
+      default:
+        return colors.success;
+    }
+  };
 
   // Track history of values
   useEffect(() => {
@@ -25,14 +53,14 @@ const Gauges = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
     const timestamp = now.toLocaleTimeString();
 
     const newHistory = { ...history };
-    const gauges = [
+    const gaugeKeys = [
       { key: "MaxCellTemp", value: bmsState.MaxCellTemp?.N },
       { key: "MaximumCellVoltage", value: bmsState.MaximumCellVoltage?.N },
       { key: "MinCellTemp", value: bmsState.MinCellTemp?.N },
       { key: "MinimumCellVoltage", value: bmsState.MinimumCellVoltage?.N },
     ];
 
-    gauges.forEach((gauge) => {
+    gaugeKeys.forEach((gauge) => {
       if (gauge.value !== undefined) {
         if (!newHistory[gauge.key]) {
           newHistory[gauge.key] = [];
@@ -52,13 +80,6 @@ const Gauges = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
     setHistory(newHistory);
   }, [bmsState]);
 
-  const calculateColor = (value, max, type) => {
-    const percentage = (value / max) * 100;
-    if (type === "temp" && percentage > 80) return colors.error;
-    if (type === "voltage" && (percentage > 90 || percentage < 10)) return colors.warning;
-    return colors.accent;
-  };
-
   const gauges = [
     {
       title: "Max Cell Temp",
@@ -66,11 +87,10 @@ const Gauges = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
       value: roundValue(bmsState.MaxCellTemp?.N || 0),
       info: `Node: ${bmsState.MaxCellTempNode?.N || "N/A"}`,
       min: 0,
-      max: 100,
+      max: 60,
       unit: "°C",
       type: "temp",
-      status: (percentage) =>
-        percentage >= 90 ? "Critical" : percentage >= 60 ? "Warning" : "Normal",
+      getStatus: () => getTempStatus(bmsState.MaxCellTemp?.N || 0),
     },
     {
       title: "Max Cell Voltage",
@@ -79,12 +99,11 @@ const Gauges = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
       info: `Cell: ${bmsState.MaximumCellVoltageCellNo?.N || "N/A"}, Node: ${
         bmsState.MaximumCellVoltageNode?.N || "N/A"
       }`,
-      min: 0,
-      max: 5,
+      min: 2,
+      max: 3.8,
       unit: "V",
       type: "voltage",
-      status: (percentage) =>
-        percentage >= 90 ? "High" : percentage >= 60 ? "Elevated" : "Optimal",
+      getStatus: () => getVoltageStatus(bmsState.MaximumCellVoltage?.N || 0),
     },
     {
       title: "Min Cell Temp",
@@ -92,11 +111,10 @@ const Gauges = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
       value: roundValue(bmsState.MinCellTemp?.N || 0),
       info: `Node: ${bmsState.MinCellTempNode?.N || "N/A"}`,
       min: 0,
-      max: 100,
+      max: 60,
       unit: "°C",
       type: "temp",
-      status: (percentage) =>
-        percentage >= 90 ? "Critical" : percentage >= 60 ? "Warning" : "Stable",
+      getStatus: () => getTempStatus(bmsState.MinCellTemp?.N || 0),
     },
     {
       title: "Min Cell Voltage",
@@ -105,12 +123,11 @@ const Gauges = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
       info: `Cell: ${bmsState.MinimumCellVoltageCellNo?.N || "N/A"}, Node: ${
         bmsState.MinimumCellVoltageNode?.N || "N/A"
       }`,
-      min: 0,
-      max: 5,
+      min: 2,
+      max: 3.8,
       unit: "V",
       type: "voltage",
-      status: (percentage) =>
-        percentage >= 90 ? "Low" : percentage >= 60 ? "Fair" : "Good",
+      getStatus: () => getVoltageStatus(bmsState.MinimumCellVoltage?.N || 0),
     },
   ];
 
@@ -163,9 +180,9 @@ const Gauges = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
 
   const GaugeCard = ({ gauge }) => {
     const historyData = history[gauge.key] || [];
-    const percentage = (gauge.value / gauge.max) * 100;
-    const color = calculateColor(gauge.value, gauge.max, gauge.type);
-    const statusText = gauge.status(percentage);
+    const percentage = ((gauge.value - gauge.min) / (gauge.max - gauge.min)) * 100;
+    const statusText = gauge.getStatus();
+    const statusColor = getStatusColor(statusText);
 
     const getResponsiveValue = (min, max, unit = 'px') => {
       return `clamp(${min}${unit}, ${(min + max) / 2}vw, ${max}${unit})`;
@@ -265,8 +282,8 @@ const Gauges = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
           <div
             style={{
               padding: "2px 8px",
-              backgroundColor: `${color}15`,
-              color: color,
+              backgroundColor: `${statusColor}15`,
+              color: statusColor,
               borderRadius: "12px",
               fontWeight: "600",
               fontSize: isMobile ? "9px" : getResponsiveValue(10, 11),
@@ -290,7 +307,7 @@ const Gauges = ({ bmsState = {}, roundValue = (v) => Math.round(v), colors = {
             data={historyData}
             min={gauge.min}
             max={gauge.max}
-            color={color}
+            color="#70ab5c"
             key={gauge.key}
           />
         </div>

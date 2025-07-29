@@ -71,7 +71,6 @@ const BatteryMetricsCarousel = ({
   useEffect(() => {
     setHistory((prev) => {
       const newHistory = { ...prev };
-
       if (bmsState.SOCPercent?.N) {
         const socValue = parseFloat(bmsState.SOCPercent.N);
         newHistory.SOCPercent = [...prev.SOCPercent.slice(1), socValue];
@@ -88,7 +87,8 @@ const BatteryMetricsCarousel = ({
       return newHistory;
     });
   }, [bmsState]);
-
+  
+  const voltageDiff = parseFloat(bmsState.MaximumCellVoltage?.N) - parseFloat(bmsState.MinimumCellVoltage?.N);
   // Metrics data with enhanced visual properties
   const metricsData = [
     {
@@ -115,7 +115,9 @@ const BatteryMetricsCarousel = ({
       value: parseFloat(bmsState.BalanceSOCPercent?.N),
       maxValue: 100,
       unit: "%",
-      additionalInfo: "3.35V-3.37V",
+      additionalInfo: voltageDiff < 0.1 
+  ? (voltageDiff * 1000).toFixed(1) + " mV"
+  : voltageDiff.toFixed(1) + " V",
       status:
         parseFloat(bmsState.Node01BalanceStatus?.N) == 0 &&
         parseFloat(bmsState.Node00BalanceStatus?.N) == 0
@@ -133,7 +135,11 @@ const BatteryMetricsCarousel = ({
       maxValue: 60,
       unit: "°C",
       additionalInfo: "0°-60°",
-      status: "Normal",
+            status:
+        parseFloat(bmsState.MaxCellTemp?.N) > 0 &&
+        parseFloat(bmsState.MaxCellTemp?.N) < 60
+          ? "Normal"
+          : "Warning",
       statusColor: colors.success,
       trend: "",
       gaugeColor: (value) => {
@@ -143,19 +149,25 @@ const BatteryMetricsCarousel = ({
       },
       icon: "",
     },
-    {
-      title: "State of Health",
-      key: "SOH",
-      value: parseFloat(bmsState.SOH_Estimate?.N),
-      maxValue: 100,
-      unit: "%",
-      additionalInfo: "",
-      status: "Excellent",
-      statusColor: colors.success,
-      trend: "",
-      gaugeColor: colors.success,
-      icon: "",
-    },
+{
+  title: "State of Health",
+  key: "SOH",
+  value: parseFloat(bmsState.SOH_Estimate?.N),
+  maxValue: 100,
+  unit: "%",
+  additionalInfo: "",
+  status: (() => {
+    const soh = parseFloat(bmsState.SOH_Estimate?.N);
+    if (soh < 20) return "Needs Attention";
+    if (soh < 50) return "Low";
+    if (soh < 90) return "Good";
+    return "Excellent";
+  })(),
+  statusColor: colors.success,
+  trend: "",
+  gaugeColor: colors.success,
+  icon: "",
+},
   ];
 
   // Enhanced chart data creation
