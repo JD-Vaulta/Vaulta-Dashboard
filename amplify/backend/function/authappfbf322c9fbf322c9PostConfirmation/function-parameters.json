@@ -1,0 +1,16 @@
+{
+  "trigger": true,
+  "modules": [
+    "add-to-group"
+  ],
+  "parentResource": "authappfbf322c9fbf322c9",
+  "functionName": "authappfbf322c9fbf322c9PostConfirmation",
+  "resourceName": "authappfbf322c9fbf322c9PostConfirmation",
+  "parentStack": "auth",
+  "triggerEnvs": "[]",
+  "triggerDir": "C:\\snapshot\\amplify-cli\\build\\node_modules\\@aws-amplify\\amplify-category-auth\\provider-utils\\awscloudformation\\triggers\\PostConfirmation",
+  "triggerTemplate": "PostConfirmation.json.ejs",
+  "triggerEventPath": "PostConfirmation.event.json",
+  "roleName": "authappfbf322c9fbf322c9PostConfirmation",
+  "skipEdit": true
+}

@@ -17,5 +17,30 @@
         "userPoolGroups": {}
       }
     }
+  },
+  "vaulta": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-authapp-vaulta-fd63e-authRole",
+      "UnauthRoleArn": "arn:aws:iam::183631334799:role/amplify-authapp-vaulta-fd63e-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::183631334799:role/amplify-authapp-vaulta-fd63e-authRole",
+      "Region": "ap-southeast-2",
+      "DeploymentBucketName": "amplify-authapp-vaulta-fd63e-deployment",
+      "UnauthRoleName": "amplify-authapp-vaulta-fd63e-unauthRole",
+      "StackName": "amplify-authapp-vaulta-fd63e",
+      "StackId": "arn:aws:cloudformation:ap-southeast-2:183631334799:stack/amplify-authapp-vaulta-fd63e/96daf690-6e65-11f0-822b-065f27a56d6f",
+      "AmplifyAppId": "d1kh0kg10gqbya"
+    },
+    "categories": {
+      "function": {
+        "authappfbf322c9fbf322c9PostConfirmation": {
+          "GROUP": "console-group",
+          "deploymentBucketName": "amplify-authapp-vaulta-fd63e-deployment",
+          "s3Key": "amplify-builds/authappfbf322c9fbf322c9PostConfirmation-682f5256666544357635-build.zip"
+        }
+      },
+      "auth": {
+        "authapp90e5702f90e5702f": {}
+      }
+    }
   }
 }

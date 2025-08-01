@@ -6,7 +6,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Amplify } from "aws-amplify";
 import awsconfig from "./aws-exports.js";
 import CustomAuthWrapper from "./CustomAuthWrapper.js";
@@ -48,12 +48,12 @@ Amplify.configure(awsconfig);
 // Protected Route Component
 function ProtectedRoute({ children, user }) {
   const location = useLocation();
-  
+
   if (!user) {
     // Redirect to sign in page but save the attempted location
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
-  
+
   return children;
 }
 
@@ -130,14 +130,10 @@ function App() {
               <Route
                 path="/signup"
                 element={
-                  user ? (
-                    <Navigate to="/dashboard" replace />
-                  ) : (
-                    <SignUpPage />
-                  )
+                  user ? <Navigate to="/dashboard" replace /> : <SignUpPage />
                 }
               />
-              
+
               {/* Protected Routes */}
               <Route
                 path="/*"
@@ -177,12 +173,14 @@ function AppWithAuth({
 }) {
   const location = useLocation();
   const [activeSection, setActiveSection] = useState({});
-  
+
   // PackController Integration States
   const [dataType, setDataType] = useState("battery"); // "battery" or "packcontroller"
   const [packControllerState, setPackControllerState] = useState(null);
   const [packControllerLoading, setPackControllerLoading] = useState(false);
-  const [packControllerLastUpdate, setPackControllerLastUpdate] = useState(new Date());
+  const [packControllerLastUpdate, setPackControllerLastUpdate] = useState(
+    new Date()
+  );
 
   // Define the default section for each page
   useEffect(() => {
@@ -216,7 +214,7 @@ function AppWithAuth({
 
       try {
         setPackControllerLoading(true);
-        
+
         const session = await fetchAuthSession();
         const credentials = session.credentials;
 
@@ -227,7 +225,10 @@ function AppWithAuth({
         });
 
         const deviceId = "PACK-CONTROLLER"; // Use the actual device ID from your data
-        const latestReading = await getLatestPackControllerReading(docClient, deviceId);
+        const latestReading = await getLatestPackControllerReading(
+          docClient,
+          deviceId
+        );
 
         if (latestReading) {
           console.log("Latest PackController reading received:", latestReading);
@@ -262,7 +263,10 @@ function AppWithAuth({
         });
 
         const deviceId = "PACK-CONTROLLER";
-        const latestReading = await getLatestPackControllerReading(docClient, deviceId);
+        const latestReading = await getLatestPackControllerReading(
+          docClient,
+          deviceId
+        );
 
         if (latestReading) {
           setPackControllerState(latestReading);
@@ -280,7 +284,7 @@ function AppWithAuth({
   const handleDataTypeChange = (newDataType) => {
     console.log("Data type changed to:", newDataType);
     setDataType(newDataType);
-    
+
     // Reset section to appropriate default for the data type
     if (newDataType === "packcontroller") {
       setActiveSection({ dashboard: "overview" });
@@ -320,7 +324,9 @@ function AppWithAuth({
                   margin: "0 5px",
                   padding: "8px 16px",
                   backgroundColor:
-                    activeSection.dashboard === "overview" ? "#4CAF50" : "#ffffff",
+                    activeSection.dashboard === "overview"
+                      ? "#4CAF50"
+                      : "#ffffff",
                   color:
                     activeSection.dashboard === "overview" ? "#fff" : "#333333",
                   border: "none",
@@ -343,7 +349,9 @@ function AppWithAuth({
                   margin: "0 5px",
                   padding: "8px 16px",
                   backgroundColor:
-                    activeSection.dashboard === "alarms" ? "#4CAF50" : "#ffffff",
+                    activeSection.dashboard === "alarms"
+                      ? "#4CAF50"
+                      : "#ffffff",
                   color:
                     activeSection.dashboard === "alarms" ? "#fff" : "#333333",
                   border: "none",
@@ -371,7 +379,9 @@ function AppWithAuth({
                   margin: "0 5px",
                   padding: "8px 16px",
                   backgroundColor:
-                    activeSection.dashboard === "system" ? "#4CAF50" : "#ffffff",
+                    activeSection.dashboard === "system"
+                      ? "#4CAF50"
+                      : "#ffffff",
                   color:
                     activeSection.dashboard === "system" ? "#fff" : "#333333",
                   border: "none",
@@ -394,7 +404,9 @@ function AppWithAuth({
                   margin: "0 5px",
                   padding: "8px 16px",
                   backgroundColor:
-                    activeSection.dashboard === "details" ? "#4CAF50" : "#ffffff",
+                    activeSection.dashboard === "details"
+                      ? "#4CAF50"
+                      : "#ffffff",
                   color:
                     activeSection.dashboard === "details" ? "#fff" : "#333333",
                   border: "none",
@@ -417,9 +429,13 @@ function AppWithAuth({
                   margin: "0 5px",
                   padding: "8px 16px",
                   backgroundColor:
-                    activeSection.dashboard === "installations" ? "#4CAF50" : "#ffffff",
+                    activeSection.dashboard === "installations"
+                      ? "#4CAF50"
+                      : "#ffffff",
                   color:
-                    activeSection.dashboard === "installations" ? "#fff" : "#333333",
+                    activeSection.dashboard === "installations"
+                      ? "#fff"
+                      : "#333333",
                   border: "none",
                   borderRadius: "5px",
                   cursor: "pointer",
@@ -457,9 +473,13 @@ function AppWithAuth({
                 fontWeight: "600",
                 boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                 fontSize: "0.85rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
               }}
             >
-              Dashboard
+              <span>📊</span>
+              Key Insights
             </button>
             <button
               onClick={() => setActiveSection({ energy: "hourlyAverages" })}
@@ -480,8 +500,12 @@ function AppWithAuth({
                 fontWeight: "600",
                 boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                 fontSize: "0.85rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
               }}
             >
+              <span>📈</span>
               Hourly Trends
             </button>
             <button
@@ -501,8 +525,12 @@ function AppWithAuth({
                 fontWeight: "600",
                 boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                 fontSize: "0.85rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
               }}
             >
+              <span>📅</span>
               Daily Summary
             </button>
           </div>
@@ -583,12 +611,12 @@ function AppWithAuth({
     if (dataType === "packcontroller") {
       return {
         lastUpdate: packControllerLastUpdate,
-        isUpdating: packControllerLoading
+        isUpdating: packControllerLoading,
       };
     } else {
       return {
         lastUpdate: lastUpdate,
-        isUpdating: isUpdating
+        isUpdating: isUpdating,
       };
     }
   };
@@ -684,7 +712,10 @@ function AppWithAuth({
                 >
                   <Dashboard
                     bmsData={bmsData}
-                    activeSection={activeSection.dashboard || (dataType === "packcontroller" ? "overview" : "system")}
+                    activeSection={
+                      activeSection.dashboard ||
+                      (dataType === "packcontroller" ? "overview" : "system")
+                    }
                     dataType={dataType}
                     packControllerState={packControllerState}
                   />

@@ -1,6 +1,7 @@
 import React from "react";
 import WarrantyStatus from "./components/WarrantyStatus.js";
 import SupportContact from "./components/SupportContact.js";
+import DocumentManager from "./components/DocumentManager.js";
 import { getWarrantyInfo } from "./utils/warrantyHelpers.js";
 
 const WarrantyPage = ({ bmsData }) => {
@@ -40,6 +41,7 @@ const WarrantyPage = ({ bmsData }) => {
         }}
       >
         <WarrantyStatus warrantyInfo={warrantyInfo} />
+        <DocumentManager />
         <SupportContact />
       </div>
     </div>
