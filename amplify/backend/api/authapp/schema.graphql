@@ -1,0 +1,30 @@
+type UserDocument @model @auth(rules: [{ allow: owner }]) {
+  id: ID!
+  userId: String!
+  filename: String!
+  originalFilename: String!
+  documentType: DocumentType! @index(name: "byDocumentType")
+  fileSize: Int!
+  mimeType: String!
+  s3Key: String!
+  uploadDate: AWSDateTime!
+  lastAccessed: AWSDateTime
+  metadata: AWSJSON
+  isActive: Boolean!
+  tags: [String]
+  owner: String @auth(rules: [{ allow: owner }])
+}
+
+enum DocumentType {
+  LICENSE
+  PERMIT
+  SHIPPING
+  CERTIFICATE
+  WARRANTY
+  INSTALLATION
+  MAINTENANCE
+  COMPLIANCE
+  INSURANCE
+  CUSTOMS
+  OTHER
+}

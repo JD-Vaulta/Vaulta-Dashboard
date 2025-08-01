@@ -1,0 +1,12 @@
+{
+  "AppSyncApiName": "authapp",
+  "DynamoDBBillingMode": "PAY_PER_REQUEST",
+  "DynamoDBEnableServerSideEncryption": false,
+  "AuthCognitoUserPoolId": {
+    "Fn::GetAtt": [
+      "authauthappfbf322c9fbf322c9",
+      "Outputs.UserPoolId"
+    ]
+  },
+  "AuthModeLastUpdated": "2025-08-01T04:10:37.174Z"
+}

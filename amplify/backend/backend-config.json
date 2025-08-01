@@ -1,7 +1,32 @@
 {
-  "api": {},
+  "api": {
+    "authapp": {
+      "dependsOn": [
+        {
+          "attributes": [
+            "UserPoolId"
+          ],
+          "category": "auth",
+          "resourceName": "authappfbf322c9fbf322c9"
+        }
+      ],
+      "output": {
+        "authConfig": {
+          "additionalAuthenticationProviders": [],
+          "defaultAuthentication": {
+            "authenticationType": "AMAZON_COGNITO_USER_POOLS",
+            "userPoolConfig": {
+              "userPoolId": "authauthappfbf322c9fbf322c9"
+            }
+          }
+        }
+      },
+      "providerPlugin": "awscloudformation",
+      "service": "AppSync"
+    }
+  },
   "auth": {
-    "authapp90e5702f90e5702f": {
+    "authappfbf322c9fbf322c9": {
       "customAuth": false,
       "dependsOn": [],
       "frontendAuthConfig": {
@@ -10,10 +35,7 @@
           "SMS"
         ],
         "passwordProtectionSettings": {
-          "passwordPolicyCharacters": [
-            "REQUIRES_LOWERCASE",
-            "REQUIRES_NUMBERS"
-          ],
+          "passwordPolicyCharacters": [],
           "passwordPolicyMinLength": 8
         },
         "signupAttributes": [
@@ -29,13 +51,22 @@
       },
       "providerPlugin": "awscloudformation",
       "service": "Cognito"
-    }
-  },
-  "function": {
-    "authappfbf322c9fbf322c9PostConfirmation": {
-      "build": true,
+    },
+    "userPoolGroups": {
+      "dependsOn": [
+        {
+          "attributes": [
+            "UserPoolId",
+            "AppClientIDWeb",
+            "AppClientID",
+            "IdentityPoolId"
+          ],
+          "category": "auth",
+          "resourceName": "authappfbf322c9fbf322c9"
+        }
+      ],
       "providerPlugin": "awscloudformation",
-      "service": "Lambda"
+      "service": "Cognito-UserPool-Groups"
     }
   },
   "hosting": {},
@@ -65,5 +96,11 @@
       ]
     }
   },
-  "storage": {}
+  "storage": {
+    "documentStorage": {
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "S3"
+    }
+  }
 }

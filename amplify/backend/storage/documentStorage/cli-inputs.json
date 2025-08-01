@@ -1,0 +1,13 @@
+{
+  "resourceName": "documentStorage",
+  "policyUUID": "d3e6b269",
+  "bucketName": "authapp-document-storage",
+  "storageAccess": "auth",
+  "guestAccess": [],
+  "authAccess": [
+    "CREATE_AND_UPDATE",
+    "READ",
+    "DELETE"
+  ],
+  "triggerFunction": "NONE"
+}

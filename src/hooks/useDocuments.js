@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 // Initialize GraphQL client
 const client = generateClient();
 
-// GraphQL operations
+// GraphQL operations - Using correct Amplify-generated names
 const createUserDocument = `
   mutation CreateUserDocument($input: CreateUserDocumentInput!) {
     createUserDocument(input: $input) {
@@ -22,6 +22,8 @@ const createUserDocument = `
       s3Key
       uploadDate
       isActive
+      createdAt
+      updatedAt
     }
   }
 `;
@@ -59,6 +61,67 @@ const updateUserDocument = `
   }
 `;
 
+// Alternative queries to try if the above don't work
+const alternativeQueries = {
+  // Try with different naming conventions
+  listByOwner: `
+    query ListUserDocumentsByUserId($userId: String!, $filter: ModelUserDocumentFilterInput) {
+      listUserDocuments(filter: $filter) {
+        items {
+          id
+          userId
+          filename
+          originalFilename
+          documentType
+          fileSize
+          mimeType
+          s3Key
+          uploadDate
+          lastAccessed
+          isActive
+          createdAt
+          updatedAt
+          owner
+        }
+      }
+    }
+  `,
+
+  // Try querying by index
+  byUserId: `
+    query UserDocumentsByUserId($userId: String!, $sortDirection: ModelSortDirection, $filter: ModelUserDocumentFilterInput) {
+      userDocumentsByUserId(userId: $userId, sortDirection: $sortDirection, filter: $filter) {
+        items {
+          id
+          userId
+          filename
+          originalFilename
+          documentType
+          fileSize
+          mimeType
+          s3Key
+          uploadDate
+          lastAccessed
+          isActive
+          createdAt
+          updatedAt
+        }
+      }
+    }
+  `,
+};
+
+// Helper function to extract GraphQL errors
+const extractGraphQLErrors = (error) => {
+  if (error?.errors && Array.isArray(error.errors)) {
+    return error.errors.map((err) => err.message || err.toString()).join("; ");
+  }
+  if (error?.message) {
+    return error.message;
+  }
+  return error?.toString() || "Unknown error occurred";
+};
+
 export const useDocuments = () => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -68,13 +131,16 @@ export const useDocuments = () => {
   const getCurrentUser = async () => {
     try {
       const session = await fetchAuthSession();
+      if (!session || !session.userSub) {
+        throw new Error("No valid session found");
+      }
       return {
         userId: session.userSub,
         identityId: session.identityId,
       };
     } catch (error) {
       console.error("Error getting current user:", error);
-      throw new Error("User not authenticated");
+      throw new Error("User not authenticated: " + extractGraphQLErrors(error));
     }
   };
 
@@ -84,24 +150,101 @@ export const useDocuments = () => {
     try {
       const user = await getCurrentUser();
 
-      const result = await client.graphql({
-        query: listUserDocuments,
-        variables: {
-          filter: {
-            userId: { eq: user.userId },
-            isActive: { eq: true },
-          },
-        },
-      });
+      console.log("Loading documents for user:", user.userId);
 
-      const activeDocuments = result.data.listUserDocuments.items.sort(
+      let result = null;
+      let queryAttempt = 1;
+
+      // Try different query approaches due to complex auth rules
+      try {
+        console.log(
+          `Query attempt ${queryAttempt}: Standard listUserDocuments`
+        );
+        result = await client.graphql({
+          query: listUserDocuments,
+          variables: {
+            filter: {
+              isActive: { eq: true },
+            },
+          },
+        });
+        console.log("✅ Standard query successful");
+      } catch (firstError) {
+        console.log(
+          "❌ Standard query failed:",
+          extractGraphQLErrors(firstError)
+        );
+        queryAttempt = 2;
+
+        try {
+          console.log(`Query attempt ${queryAttempt}: Using byUserId index`);
+          result = await client.graphql({
+            query: alternativeQueries.byUserId,
+            variables: {
+              userId: user.userId,
+              sortDirection: "DESC",
+              filter: {
+                isActive: { eq: true },
+              },
+            },
+          });
+          console.log("✅ Index query successful");
+        } catch (secondError) {
+          console.log(
+            "❌ Index query failed:",
+            extractGraphQLErrors(secondError)
+          );
+          queryAttempt = 3;
+
+          try {
+            console.log(
+              `Query attempt ${queryAttempt}: Simple listUserDocuments without userId filter`
+            );
+            result = await client.graphql({
+              query: listUserDocuments,
+              variables: {
+                filter: {
+                  isActive: { eq: true },
+                },
+              },
+            });
+            console.log("✅ Simple query successful");
+          } catch (thirdError) {
+            console.log("❌ All query attempts failed");
+            throw thirdError;
+          }
+        }
+      }
+
+      console.log("GraphQL result:", result);
+
+      if (result.errors) {
+        throw result;
+      }
+
+      // Extract documents from different possible result structures
+      let activeDocuments = [];
+      if (result.data?.listUserDocuments?.items) {
+        activeDocuments = result.data.listUserDocuments.items;
+      } else if (result.data?.userDocumentsByUserId?.items) {
+        activeDocuments = result.data.userDocumentsByUserId.items;
+      }
+
+      // Filter by current user (in case auth rules don't handle this)
+      activeDocuments = activeDocuments.filter(
+        (doc) => doc.userId === user.userId && doc.isActive === true
+      );
+
+      const sortedDocuments = activeDocuments.sort(
         (a, b) => new Date(b.uploadDate) - new Date(a.uploadDate)
       );
 
-      setDocuments(activeDocuments);
+      setDocuments(sortedDocuments);
+      console.log("Loaded documents:", sortedDocuments.length);
     } catch (error) {
       console.error("Error loading documents:", error);
-      setError("Failed to load documents: " + error.message);
+      const errorMessage = extractGraphQLErrors(error);
+      setError("Failed to load documents: " + errorMessage);
     } finally {
       setLoading(false);
     }
@@ -178,7 +321,7 @@ export const useDocuments = () => {
       const uploadResult = await uploadTask.result;
       console.log("Upload completed:", uploadResult);
 
-      // Save metadata to DynamoDB
+      // Prepare document input - Add owner field for Amplify auth
       const documentInput = {
         userId: user.userId,
         filename: filename,
@@ -189,16 +332,52 @@ export const useDocuments = () => {
         s3Key: s3Key,
         uploadDate: new Date().toISOString(),
         isActive: true,
+        owner: user.userId, // Add explicit owner field for Amplify auth
       };
 
       console.log("Saving document metadata:", documentInput);
 
-      const dbResult = await client.graphql({
-        query: createUserDocument,
-        variables: { input: documentInput },
-      });
+      // Try the mutation
+      let dbResult = null;
+      try {
+        dbResult = await client.graphql({
+          query: createUserDocument,
+          variables: { input: documentInput },
+        });
+        console.log("✅ Create mutation successful");
+      } catch (mutationError) {
+        console.error("❌ Create mutation failed:", mutationError);
 
-      console.log("Document metadata saved:", dbResult);
+        // If mutation fails, we still have the file in S3
+        // Let's try to provide helpful error information
+        const errorMessage = extractGraphQLErrors(mutationError);
+
+        if (
+          errorMessage.includes("UnknownType") ||
+          errorMessage.includes("FieldUndefined")
+        ) {
+          throw new Error(
+            `Database schema issue: ${errorMessage}\n\nThe file was uploaded to S3 successfully, but couldn't save metadata. Please check your GraphQL schema deployment.`
+          );
+        } else if (
+          errorMessage.includes("Unauthorized") ||
+          errorMessage.includes("Access denied")
+        ) {
+          throw new Error(
+            `Permission issue: ${errorMessage}\n\nPlease check your authentication and authorization settings.`
+          );
+        } else {
+          throw new Error(`Database error: ${errorMessage}`);
+        }
+      }
+
+      console.log("GraphQL create result:", dbResult);
+
+      if (dbResult?.errors) {
+        throw dbResult;
+      }
+
+      console.log("Document metadata saved successfully");
 
       // Refresh documents list
       await loadDocuments();
@@ -206,8 +385,9 @@ export const useDocuments = () => {
       return { success: true, fileId, result: uploadResult };
     } catch (error) {
       console.error("Upload error:", error);
-      setError(`Upload failed: ${error.message}`);
-      return { success: false, error: error.message };
+      const errorMessage = extractGraphQLErrors(error);
+      setError(`Upload failed: ${errorMessage}`);
+      return { success: false, error: errorMessage };
     } finally {
       // Clear upload progress after a delay
       if (fileId) {
@@ -222,26 +402,31 @@ export const useDocuments = () => {
     }
   };
 
-  const downloadDocument = async (document) => {
+  const downloadDocument = async (doc) => {
     try {
       setError(null);
 
-      console.log("Downloading document:", document.s3Key);
+      console.log("Downloading document:", doc.s3Key);
 
-      // Update last accessed time
-      await client.graphql({
-        query: updateUserDocument,
-        variables: {
-          input: {
-            id: document.id,
-            lastAccessed: new Date().toISOString(),
+      // Update last accessed time (with error handling)
+      try {
+        await client.graphql({
+          query: updateUserDocument,
+          variables: {
+            input: {
+              id: doc.id,
+              lastAccessed: new Date().toISOString(),
+            },
           },
-        },
-      });
+        });
+      } catch (updateError) {
+        console.warn("Failed to update last accessed time:", updateError);
+        // Don't fail the download if we can't update the timestamp
+      }
 
       // Get signed URL for download using Amplify Storage v6
       const getUrlResult = await getUrl({
-        key: document.s3Key,
+        key: doc.s3Key,
         options: {
           expiresIn: 300, // 5 minutes
         },
@@ -250,19 +435,21 @@ export const useDocuments = () => {
       console.log("Generated download URL");
 
       // Create temporary link and trigger download
-      const link = document.createElement("a");
+      const link = window.document.createElement("a");
       link.href = getUrlResult.url.toString();
-      link.download = document.originalFilename;
+      link.download = doc.originalFilename;
       link.target = "_blank";
-      document.body.appendChild(link);
+      link.style.display = "none";
+      window.document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      window.document.body.removeChild(link);
 
       return { success: true };
     } catch (error) {
       console.error("Download error:", error);
-      setError(`Download failed: ${error.message}`);
-      return { success: false, error: error.message };
+      const errorMessage = extractGraphQLErrors(error);
+      setError(`Download failed: ${errorMessage}`);
+      return { success: false, error: errorMessage };
     }
   };
 
@@ -273,13 +460,13 @@ export const useDocuments = () => {
       // Find the document to get S3 key
       const documentToDelete = documents.find((doc) => doc.id === documentId);
       if (!documentToDelete) {
-        throw new Error("Document not found");
+        throw new Error("Document not found in local state");
       }
 
       console.log("Deleting document:", documentToDelete.s3Key);
 
       // Mark document as inactive in database
-      await client.graphql({
+      const result = await client.graphql({
         query: updateUserDocument,
         variables: {
           input: {
@@ -289,8 +476,14 @@ export const useDocuments = () => {
         },
       });
 
+      if (result.errors) {
+        throw result;
+      }
+
       // Optionally remove from S3 (uncomment if you want to physically delete)
       // await remove({ key: documentToDelete.s3Key });
+
+      console.log("Document marked as inactive successfully");
 
       // Refresh documents list
       await loadDocuments();
@@ -298,8 +491,9 @@ export const useDocuments = () => {
       return { success: true };
     } catch (error) {
       console.error("Delete error:", error);
-      setError(`Delete failed: ${error.message}`);
-      return { success: false, error: error.message };
+      const errorMessage = extractGraphQLErrors(error);
+      setError(`Delete failed: ${errorMessage}`);
+      return { success: false, error: errorMessage };
     }
   };
 
@@ -325,9 +519,34 @@ export const useDocuments = () => {
     return stats;
   };
 
+  // Test GraphQL connection
+  const testConnection = async () => {
+    try {
+      const user = await getCurrentUser();
+      console.log("✅ Authentication working:", user);
+
+      // Test a simple GraphQL query
+      const result = await client.graphql({
+        query: `query { __typename }`,
+      });
+      console.log("✅ GraphQL connection working:", result);
+
+      return true;
+    } catch (error) {
+      console.error("❌ Connection test failed:", error);
+      setError("Connection test failed: " + extractGraphQLErrors(error));
+      return false;
+    }
+  };
+
   // Load documents on mount and when user changes
   useEffect(() => {
-    loadDocuments();
+    // Test connection first, then load documents
+    testConnection().then((success) => {
+      if (success) {
+        loadDocuments();
+      }
+    });
   }, []);
 
   return {
@@ -342,5 +561,6 @@ export const useDocuments = () => {
     getDocumentsByType,
     getDocumentStats,
     clearError: () => setError(null),
+    testConnection, // Export for debugging
   };
 };

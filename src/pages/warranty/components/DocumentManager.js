@@ -1,6 +1,7 @@
 // src/pages/warranty/components/DocumentManager.js
 import React, { useState } from "react";
 import { useDocuments } from "../../../hooks/useDocuments.js";
+import GraphQLDiagnostic from "../../../components/GraphQLDiagnostic.js";
 import { DOCUMENT_CATEGORIES } from "../../../utils/documentCategories.js";
 
 const DocumentManager = () => {
@@ -19,6 +20,8 @@ const DocumentManager = () => {
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [dragOver, setDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+
+  <GraphQLDiagnostic />;
 
   const filteredDocuments = documents.filter(
     (doc) => selectedCategory === "ALL" || doc.documentType === selectedCategory

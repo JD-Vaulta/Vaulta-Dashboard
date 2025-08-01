@@ -39,7 +39,15 @@
         }
       },
       "auth": {
-        "authapp90e5702f90e5702f": {}
+        "authapp90e5702f90e5702f": {},
+        "authappfbf322c9fbf322c9": {},
+        "userPoolGroups": {}
+      },
+      "storage": {
+        "documentStorage": {}
+      },
+      "api": {
+        "authapp": {}
       }
     }
   }

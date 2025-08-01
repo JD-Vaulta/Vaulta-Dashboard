@@ -1,10 +1,10 @@
 {
   "version": "1",
   "cognitoConfig": {
-    "identityPoolName": "vaulta_authapp_userpool",
+    "identityPoolName": "vaultapool",
     "allowUnauthenticatedIdentities": false,
-    "resourceNameTruncated": "authap90e5702f",
-    "userPoolName": "vaulta_authapp_userpool",
+    "resourceNameTruncated": "authapfbf322c9",
+    "userPoolName": "vaultauserpool",
     "autoVerifiedAttributes": [
       "email"
     ],
@@ -16,41 +16,38 @@
     "smsVerificationMessage": "Your verification code is {####}",
     "emailVerificationSubject": "Your verification code",
     "emailVerificationMessage": "Your verification code is {####}",
-    "defaultPasswordPolicy": true,
+    "defaultPasswordPolicy": false,
     "passwordPolicyMinLength": 8,
-    "passwordPolicyCharacters": [
-      "Requires Lowercase",
-      "Requires Numbers"
-    ],
+    "passwordPolicyCharacters": [],
     "requiredAttributes": [
       "email"
     ],
     "aliasAttributes": [],
     "userpoolClientGenerateSecret": false,
-    "userpoolClientRefreshTokenValidity": "1",
+    "userpoolClientRefreshTokenValidity": 30,
     "userpoolClientWriteAttributes": [
       "email"
     ],
     "userpoolClientReadAttributes": [
-      "email",
-      "name",
-      "email_verified"
+      "email"
     ],
-    "userpoolClientLambdaRole": "authap90e5702f_userpoolclient_lambda_role",
-    "userpoolClientSetAttributes": true,
-    "sharedId": "90e5702f",
-    "resourceName": "authapp90e5702f90e5702f",
+    "userpoolClientLambdaRole": "authapfbf322c9_userpoolclient_lambda_role",
+    "userpoolClientSetAttributes": false,
+    "sharedId": "fbf322c9",
+    "resourceName": "authappfbf322c9fbf322c9",
     "authSelections": "identityPoolAndUserPool",
     "useDefault": "manual",
     "thirdPartyAuth": false,
     "usernameAttributes": [
       "email"
     ],
-    "userPoolGroups": false,
+    "userPoolGroups": true,
     "adminQueries": false,
     "triggers": {},
     "hostedUI": false,
-    "userPoolGroupList": [],
+    "userPoolGroupList": [
+      "vaultauserpoolgroup"
+    ],
     "serviceName": "Cognito",
     "usernameCaseSensitive": false,
     "useEnabledMfas": true
